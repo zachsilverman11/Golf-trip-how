@@ -8,11 +8,14 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { GroupScorer } from '@/components/scoring/GroupScorer'
 import { MatchStrip } from '@/components/match'
+import { FormatStrip } from '@/components/scoring/FormatStrip'
 import { getRoundAction, updateRoundAction } from '@/lib/supabase/round-actions'
 import { getRoundScoresMapAction, upsertScoreAction } from '@/lib/supabase/score-actions'
 import { getMatchStateAction, syncMatchStateAction } from '@/lib/supabase/match-actions'
+import { getFormatStateAction } from '@/lib/supabase/format-actions'
 import type { DbRoundWithGroups, DbHole } from '@/lib/supabase/types'
 import type { MatchState } from '@/lib/supabase/match-types'
+import type { FormatState } from '@/lib/format-types'
 
 interface Player {
   id: string
@@ -36,6 +39,7 @@ export default function ScorePage() {
   const [round, setRound] = useState<DbRoundWithGroups | null>(null)
   const [scores, setScores] = useState<{ [playerId: string]: { [hole: number]: number | null } }>({})
   const [matchState, setMatchState] = useState<MatchState | null>(null)
+  const [formatState, setFormatState] = useState<FormatState | null>(null)
   const [currentHole, setCurrentHole] = useState(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -70,9 +74,18 @@ export default function ScorePage() {
       setRound(roundResult.round)
       setScores(scoresResult.scores)
 
-      // Set match state if exists
+      // Set match state if exists (match play with money game)
       if (matchResult.success && matchResult.state) {
         setMatchState(matchResult.state)
+      }
+
+      // Load format state for team format rounds
+      const format = roundResult.round.format
+      if (format === 'points_hilo' || format === 'stableford') {
+        const formatResult = await getFormatStateAction(roundId)
+        if (formatResult.formatState) {
+          setFormatState(formatResult.formatState)
+        }
       }
 
       setLoading(false)
@@ -94,6 +107,18 @@ export default function ScorePage() {
       setMatchState(result.state)
     }
   }, [roundId, matchState])
+
+  // Refresh format state
+  const refreshFormatState = useCallback(async () => {
+    if (!round) return
+    const format = round.format
+    if (format !== 'points_hilo' && format !== 'stableford') return
+
+    const result = await getFormatStateAction(roundId)
+    if (result.formatState) {
+      setFormatState(result.formatState)
+    }
+  }, [roundId, round])
 
   // Extract players from all groups
   const players: Player[] = round?.groups?.flatMap((group) =>
@@ -151,8 +176,13 @@ export default function ScorePage() {
       await refreshMatchState()
     }
 
+    // Refresh format state if it's a team format
+    if (formatState) {
+      await refreshFormatState()
+    }
+
     setSaving(false)
-  }, [roundId, matchState, refreshMatchState])
+  }, [roundId, matchState, formatState, refreshMatchState, refreshFormatState])
 
   // Handle round completion
   const handleComplete = async () => {
@@ -214,8 +244,19 @@ export default function ScorePage() {
         </div>
       </div>
 
-      {/* Match Strip (if match exists) */}
-      {matchState && (
+      {/* Format Strip (for team formats: Points Hi/Lo, Stableford) */}
+      {formatState && (
+        <FormatStrip
+          formatState={formatState}
+          currentHole={currentHole}
+          tripId={tripId}
+          roundId={roundId}
+          className="mb-4"
+        />
+      )}
+
+      {/* Match Strip (for Match Play with money game) */}
+      {matchState && !formatState && (
         <MatchStrip
           matchState={matchState}
           currentHole={currentHole}

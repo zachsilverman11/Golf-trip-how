@@ -5,27 +5,38 @@ import { useParams } from 'next/navigation'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { Card } from '@/components/ui/Card'
 import { getTripMoneyTotalsAction, type PlayerMoneyTotal } from '@/lib/supabase/match-actions'
+import { getTripFormatStandingsAction } from '@/lib/supabase/format-actions'
 import { formatMoney } from '@/lib/match-utils'
 import { cn } from '@/lib/utils'
+import type { TripFormatStandings } from '@/lib/format-types'
 
 export default function SettlePage() {
   const params = useParams()
   const tripId = params.tripId as string
 
   const [playerTotals, setPlayerTotals] = useState<PlayerMoneyTotal[]>([])
+  const [formatStandings, setFormatStandings] = useState<TripFormatStandings | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
-      const result = await getTripMoneyTotalsAction(tripId)
+      const [moneyResult, formatResult] = await Promise.all([
+        getTripMoneyTotalsAction(tripId),
+        getTripFormatStandingsAction(tripId),
+      ])
 
-      if (!result.success) {
-        setError(result.error || 'Failed to load money totals')
+      if (!moneyResult.success) {
+        setError(moneyResult.error || 'Failed to load money totals')
       } else {
-        setPlayerTotals(result.playerTotals)
+        setPlayerTotals(moneyResult.playerTotals)
       }
+
+      if (formatResult.standings) {
+        setFormatStandings(formatResult.standings)
+      }
+
       setLoading(false)
     }
 
@@ -48,7 +59,9 @@ export default function SettlePage() {
     )
   }
 
-  const hasData = playerTotals.length > 0
+  const hasMoneyData = playerTotals.length > 0
+  const hasFormatData = formatStandings &&
+    (formatStandings.pointsHiLoRoundCount > 0 || formatStandings.stablefordRoundCount > 0)
 
   return (
     <LayoutContainer className="py-6">
@@ -56,13 +69,18 @@ export default function SettlePage() {
         Trip Money
       </h1>
 
-      {!hasData ? (
+      {/* Format Standings (if any format rounds played) */}
+      {hasFormatData && (
+        <FormatStandingsCard standings={formatStandings} className="mb-4" />
+      )}
+
+      {!hasMoneyData ? (
         <Card className="p-8 text-center">
           <div className="mb-4 text-4xl opacity-50">
             <span role="img" aria-label="money">💰</span>
           </div>
           <h2 className="mb-2 font-display text-xl font-bold text-text-0">
-            No Completed Matches Yet
+            No Completed Money Games Yet
           </h2>
           <p className="text-text-2">
             Complete some money games to see trip standings here.
@@ -157,6 +175,90 @@ export default function SettlePage() {
         </>
       )}
     </LayoutContainer>
+  )
+}
+
+/**
+ * Format standings card showing Points Hi/Lo and Stableford totals
+ * These are separate from money - just friendly competition
+ */
+function FormatStandingsCard({
+  standings,
+  className,
+}: {
+  standings: TripFormatStandings
+  className?: string
+}) {
+  const hasPointsHiLo = standings.pointsHiLoRoundCount > 0
+  const hasStableford = standings.stablefordRoundCount > 0
+
+  return (
+    <Card className={cn('p-4', className)}>
+      <h2 className="font-display font-bold text-text-0 mb-1">
+        Format Standings
+      </h2>
+      <p className="text-xs text-text-2 mb-4">
+        Player totals across rounds (teams rotate each round)
+      </p>
+
+      <div className="space-y-4">
+        {/* Points Hi/Lo */}
+        {hasPointsHiLo && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-text-1">Points (Hi/Lo)</h3>
+              <span className="text-xs text-text-2">
+                {standings.pointsHiLoRoundCount} rd{standings.pointsHiLoRoundCount !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {standings.pointsHiLo.slice(0, 4).map((player, idx) => (
+                <div
+                  key={player.playerId}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2 py-1 rounded-full text-xs',
+                    idx === 0 ? 'bg-gold/15 text-gold' : 'bg-bg-2 text-text-1'
+                  )}
+                >
+                  <span className="font-medium">{idx + 1}.</span>
+                  <span>{player.playerName.split(' ')[0]}</span>
+                  <span className="font-bold">
+                    {player.total % 1 === 0 ? player.total : player.total.toFixed(1)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Stableford */}
+        {hasStableford && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-text-1">Stableford</h3>
+              <span className="text-xs text-text-2">
+                {standings.stablefordRoundCount} rd{standings.stablefordRoundCount !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {standings.stableford.slice(0, 4).map((player, idx) => (
+                <div
+                  key={player.playerId}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2 py-1 rounded-full text-xs',
+                    idx === 0 ? 'bg-gold/15 text-gold' : 'bg-bg-2 text-text-1'
+                  )}
+                >
+                  <span className="font-medium">{idx + 1}.</span>
+                  <span>{player.playerName.split(' ')[0]}</span>
+                  <span className="font-bold">{player.total}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
   )
 }
 

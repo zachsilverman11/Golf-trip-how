@@ -96,8 +96,9 @@ export interface DbRound {
   tee_id: string | null
   name: string
   date: string
+  tee_time: string | null
   status: 'upcoming' | 'in_progress' | 'completed'
-  format: 'stroke_play' | 'best_ball' | 'scramble' | 'match_play'
+  format: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
   scoring_basis: 'gross' | 'net'
   created_at: string
   updated_at: string
@@ -118,6 +119,7 @@ export interface DbGroupPlayer {
   group_id: string
   player_id: string
   playing_handicap: number | null
+  team_number: 1 | 2 | null
   created_at: string
   updated_at: string
 }
@@ -168,7 +170,9 @@ export interface DbRoundSummary {
   id: string
   name: string
   date: string
+  tee_time: string | null
   status: 'upcoming' | 'in_progress' | 'completed'
+  format: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
 }
 
 // Extended trip type with counts for Trip HQ

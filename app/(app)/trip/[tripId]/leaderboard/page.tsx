@@ -9,11 +9,13 @@ import { Tabs } from '@/components/ui/Tabs'
 import { Badge } from '@/components/ui/Badge'
 import { LeaderboardRow } from '@/components/ui/LeaderboardRow'
 import { getTripLeaderboardAction } from '@/lib/supabase/leaderboard-actions'
+import { getTripFormatStandingsAction } from '@/lib/supabase/format-actions'
 import { getRoundsAction } from '@/lib/supabase/round-actions'
 import type { LeaderboardEntry, TripLeaderboard } from '@/lib/supabase/leaderboard-actions'
 import type { DbRoundWithTee } from '@/lib/supabase/types'
+import type { TripFormatStandings } from '@/lib/format-types'
 
-type ScoringMode = 'net' | 'gross'
+type ScoringMode = 'net' | 'gross' | 'format'
 
 export default function LeaderboardPage() {
   const params = useParams()
@@ -24,6 +26,7 @@ export default function LeaderboardPage() {
     par: 72,
     holesTotal: 18,
   })
+  const [formatStandings, setFormatStandings] = useState<TripFormatStandings | null>(null)
   const [rounds, setRounds] = useState<DbRoundWithTee[]>([])
   const [selectedRoundId, setSelectedRoundId] = useState<string | undefined>()
   const [scoringMode, setScoringMode] = useState<ScoringMode>('net')
@@ -31,9 +34,10 @@ export default function LeaderboardPage() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
 
   const loadData = async () => {
-    const [leaderboardResult, roundsResult] = await Promise.all([
+    const [leaderboardResult, roundsResult, formatResult] = await Promise.all([
       getTripLeaderboardAction(tripId, selectedRoundId),
       getRoundsAction(tripId),
+      getTripFormatStandingsAction(tripId),
     ])
 
     if (leaderboardResult.leaderboard) {
@@ -41,6 +45,9 @@ export default function LeaderboardPage() {
     }
     if (roundsResult.rounds) {
       setRounds(roundsResult.rounds)
+    }
+    if (formatResult.standings) {
+      setFormatStandings(formatResult.standings)
     }
     setLastUpdate(new Date())
     setLoading(false)
@@ -57,9 +64,14 @@ export default function LeaderboardPage() {
     return () => clearInterval(interval)
   }, [tripId, selectedRoundId])
 
+  // Check if there are format rounds
+  const hasFormatRounds = formatStandings &&
+    (formatStandings.pointsHiLoRoundCount > 0 || formatStandings.stablefordRoundCount > 0)
+
   const scoringTabs = [
     { id: 'net', label: 'Net' },
     { id: 'gross', label: 'Gross' },
+    ...(hasFormatRounds ? [{ id: 'format', label: 'Format' }] : []),
   ]
 
   // Sort entries based on scoring mode
@@ -144,8 +156,10 @@ export default function LeaderboardPage() {
         />
       </div>
 
-      {/* Leaderboard */}
-      {entriesWithPosition.length === 0 ? (
+      {/* Leaderboard content based on mode */}
+      {scoringMode === 'format' ? (
+        <FormatStandingsView standings={formatStandings} />
+      ) : entriesWithPosition.length === 0 ? (
         <Card className="p-8 text-center">
           <p className="text-text-2">No scores yet</p>
         </Card>
@@ -183,5 +197,99 @@ function BackIcon() {
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
     </svg>
+  )
+}
+
+/**
+ * Format standings view for Points Hi/Lo and Stableford
+ * Shows player totals across all format rounds (teams rotate, players accumulate)
+ */
+function FormatStandingsView({ standings }: { standings: TripFormatStandings | null }) {
+  if (!standings) {
+    return (
+      <Card className="p-8 text-center">
+        <p className="text-text-2">No format rounds played</p>
+      </Card>
+    )
+  }
+
+  const hasPointsHiLo = standings.pointsHiLoRoundCount > 0
+  const hasStableford = standings.stablefordRoundCount > 0
+
+  if (!hasPointsHiLo && !hasStableford) {
+    return (
+      <Card className="p-8 text-center">
+        <p className="text-text-2">No format rounds played</p>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Points Hi/Lo standings */}
+      {hasPointsHiLo && (
+        <Card className="p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-display font-bold text-text-0">Points (Hi/Lo)</h3>
+            <span className="text-xs text-text-2">
+              {standings.pointsHiLoRoundCount} round{standings.pointsHiLoRoundCount !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {standings.pointsHiLo.map((player, idx) => (
+              <div
+                key={player.playerId}
+                className="flex items-center justify-between py-2 border-b border-stroke/30 last:border-0"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="w-6 text-center font-medium text-text-2">
+                    {idx + 1}
+                  </span>
+                  <span className="font-medium text-text-0">{player.playerName}</span>
+                </div>
+                <span className="font-display font-bold text-accent">
+                  {player.total % 1 === 0 ? player.total : player.total.toFixed(1)} pts
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Stableford standings */}
+      {hasStableford && (
+        <Card className="p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-display font-bold text-text-0">Stableford</h3>
+            <span className="text-xs text-text-2">
+              {standings.stablefordRoundCount} round{standings.stablefordRoundCount !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {standings.stableford.map((player, idx) => (
+              <div
+                key={player.playerId}
+                className="flex items-center justify-between py-2 border-b border-stroke/30 last:border-0"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="w-6 text-center font-medium text-text-2">
+                    {idx + 1}
+                  </span>
+                  <span className="font-medium text-text-0">{player.playerName}</span>
+                </div>
+                <span className="font-display font-bold text-accent">
+                  {player.total} pts
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Explanation */}
+      <p className="text-center text-xs text-text-2">
+        Player totals across all rounds (teams rotate each round)
+      </p>
+    </div>
   )
 }

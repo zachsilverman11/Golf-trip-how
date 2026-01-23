@@ -47,9 +47,19 @@ const statusLabels: Record<string, string> = {
 
 const formatLabels: Record<string, string> = {
   stroke_play: 'Stroke Play',
-  best_ball: 'Best Ball',
-  scramble: 'Scramble',
   match_play: 'Match Play',
+  points_hilo: 'Points (Hi/Lo)',
+  stableford: 'Stableford',
+}
+
+function formatTeeTime(teeTimeStr: string | null): string | null {
+  if (!teeTimeStr) return null
+  const date = new Date(teeTimeStr)
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
 }
 
 export default async function RoundPage({ params }: RoundPageProps) {
@@ -102,7 +112,14 @@ export default async function RoundPage({ params }: RoundPageProps) {
                 {statusLabels[round.status]}
               </Badge>
             </div>
-            <p className="text-text-2">{formatDate(round.date)}</p>
+            <p className="text-text-2">
+              {formatDate(round.date)}
+              {round.tee_time && (
+                <span className="ml-2 text-text-1">
+                  {formatTeeTime(round.tee_time)}
+                </span>
+              )}
+            </p>
           </div>
         </div>
       </div>

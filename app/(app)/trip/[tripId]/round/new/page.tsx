@@ -9,7 +9,14 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Divider } from '@/components/ui/Divider'
 import { MatchSetupForm, MatchSetupToggle } from '@/components/match'
-import { RoundFormatSelector, CourseSelector, type RoundFormat } from '@/components/round'
+import {
+  RoundFormatSelector,
+  CourseSelector,
+  TeamAssignmentForm,
+  isTeamAssignmentValid,
+  formatRequiresTeams,
+  type RoundFormat,
+} from '@/components/round'
 import { getPlayersAction } from '@/lib/supabase/player-actions'
 import { createRoundWithGroupsAction } from '@/lib/supabase/round-actions'
 import { createMatchAction } from '@/lib/supabase/match-actions'
@@ -30,7 +37,8 @@ export default function NewRoundPage() {
   // Form state
   const [name, setName] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
-  const [format, setFormat] = useState<RoundFormat>('match_play')
+  const [teeTime, setTeeTime] = useState('')
+  const [format, setFormat] = useState<RoundFormat>('stroke_play')
   const [scoringBasis, setScoringBasis] = useState<'gross' | 'net'>('net')
   const [selectedTeeId, setSelectedTeeId] = useState<string | null>(null)
   const [selectedCourseName, setSelectedCourseName] = useState<string>('')
@@ -40,7 +48,10 @@ export default function NewRoundPage() {
     { id: '1', playerIds: [], teeTime: '' },
   ])
 
-  // Match setup
+  // Team assignments (for Points Hi/Lo and Stableford)
+  const [teamAssignments, setTeamAssignments] = useState<Record<string, 1 | 2>>({})
+
+  // Match setup (only for match_play)
   const [matchEnabled, setMatchEnabled] = useState(false)
   const [matchConfig, setMatchConfig] = useState<Omit<CreateMatchInput, 'roundId'> | null>(null)
   const [showMatchSetup, setShowMatchSetup] = useState(false)
@@ -132,20 +143,47 @@ export default function NewRoundPage() {
       return
     }
 
+    // Validate team assignments for format rounds
+    const allPlayerIds = nonEmptyGroups.flatMap((g) => g.playerIds)
+    const requiresTeams = formatRequiresTeams(format)
+
+    if (requiresTeams) {
+      if (allPlayerIds.length !== 4) {
+        setError('Points Hi/Lo and Stableford formats require exactly 4 players')
+        isSubmittingRef.current = false
+        return
+      }
+
+      const assignedPlayers = players.filter((p) => allPlayerIds.includes(p.id))
+      if (!isTeamAssignmentValid(assignedPlayers, teamAssignments)) {
+        setError('Each team must have exactly 2 players')
+        isSubmittingRef.current = false
+        return
+      }
+    }
+
     setSubmitting(true)
     setError(null)
+
+    // Build tee_time as ISO timestamp if both date and time provided
+    let teeTimeTimestamp: string | null = null
+    if (teeTime) {
+      teeTimeTimestamp = `${date}T${teeTime}:00`
+    }
 
     const result = await createRoundWithGroupsAction({
       trip_id: tripId,
       tee_id: selectedTeeId || null,
       name: name.trim(),
       date,
+      tee_time: teeTimeTimestamp,
       format,
       scoring_basis: scoringBasis,
       groups: nonEmptyGroups.map((g) => ({
         tee_time: g.teeTime || null,
         player_ids: g.playerIds,
       })),
+      team_assignments: requiresTeams ? teamAssignments : undefined,
     })
 
     if (result.success && result.roundId) {
@@ -216,17 +254,30 @@ export default function NewRoundPage() {
               />
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-text-1">
-                Date <span className="text-bad">*</span>
-              </label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
-                className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-text-1">
+                  Date <span className="text-bad">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                  className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-text-1">
+                  Tee Time
+                </label>
+                <input
+                  type="time"
+                  value={teeTime}
+                  onChange={(e) => setTeeTime(e.target.value)}
+                  className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+              </div>
             </div>
 
             <RoundFormatSelector
@@ -396,8 +447,19 @@ export default function NewRoundPage() {
           )}
         </Card>
 
-        {/* Money Game (Match Setup) */}
-        {assignedPlayerIds.size >= 2 && (
+        {/* Team Assignment (for Points Hi/Lo and Stableford) */}
+        {formatRequiresTeams(format) && assignedPlayerIds.size > 0 && (
+          <div className="mb-4">
+            <TeamAssignmentForm
+              players={players.filter((p) => assignedPlayerIds.has(p.id))}
+              assignments={teamAssignments}
+              onChange={setTeamAssignments}
+            />
+          </div>
+        )}
+
+        {/* Money Game (Match Setup) - Only for Match Play */}
+        {format === 'match_play' && assignedPlayerIds.size >= 2 && (
           <div className="mb-4">
             {showMatchSetup ? (
               <MatchSetupForm

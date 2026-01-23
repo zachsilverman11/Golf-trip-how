@@ -149,7 +149,7 @@ export async function getTripAction(tripId: string): Promise<{
         *,
         trip_members (*),
         players (id),
-        rounds (id, name, date, status)
+        rounds (id, name, date, tee_time, status, format)
       `)
       .eq('id', tripId)
       .single()

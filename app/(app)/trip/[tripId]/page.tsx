@@ -32,6 +32,16 @@ function formatRoundDate(dateStr: string): string {
   })
 }
 
+function formatTeeTime(teeTimeStr: string | null): string | null {
+  if (!teeTimeStr) return null
+  const date = new Date(teeTimeStr)
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
 export default async function TripPage({ params }: TripPageProps) {
   const { trip, userRole, error } = await getTripAction(params.tripId)
 
@@ -199,6 +209,11 @@ export default async function TripPage({ params }: TripPageProps) {
                       <p className="font-medium text-text-0">{round.name}</p>
                       <p className="text-xs text-text-2">
                         {formatRoundDate(round.date)}
+                        {round.tee_time && (
+                          <span className="ml-1.5 text-text-1">
+                            {formatTeeTime(round.tee_time)}
+                          </span>
+                        )}
                       </p>
                     </div>
                     <Badge

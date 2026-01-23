@@ -22,15 +22,17 @@ export interface CreateRoundInput {
   tee_id?: string | null
   name: string
   date: string
-  format?: 'match_play' | 'points' | 'stableford' | 'stroke_play' | 'best_ball' | 'scramble'
+  tee_time?: string | null  // Round-level tee time (TIMESTAMPTZ)
+  format?: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
   scoring_basis?: 'gross' | 'net'
 }
 
 export interface UpdateRoundInput {
   name?: string
   date?: string
+  tee_time?: string | null
   status?: 'upcoming' | 'in_progress' | 'completed'
-  format?: 'match_play' | 'points' | 'stableford' | 'stroke_play' | 'best_ball' | 'scramble'
+  format?: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
   scoring_basis?: 'gross' | 'net'
   tee_id?: string | null
 }
@@ -168,7 +170,7 @@ export async function createRoundAction(input: CreateRoundInput): Promise<RoundA
         tee_id: input.tee_id ?? null,
         name: input.name,
         date: input.date,
-        format: input.format || 'match_play',
+        format: input.format || 'stroke_play',
         scoring_basis: input.scoring_basis || 'net',
         status: 'upcoming',
       })
@@ -466,6 +468,9 @@ export interface CreateRoundWithGroupsInput extends CreateRoundInput {
     player_ids: string[]
     playing_handicaps?: Record<string, number>
   }>
+  // Team assignments for Points Hi/Lo and Stableford formats
+  // Maps playerId -> team number (1 or 2)
+  team_assignments?: Record<string, 1 | 2>
 }
 
 export async function createRoundWithGroupsAction(
@@ -478,6 +483,39 @@ export async function createRoundWithGroupsAction(
     return { success: false, error: 'Not authenticated' }
   }
 
+  // Validate team assignments for format rounds
+  const formatRequiresTeams = input.format === 'points_hilo' || input.format === 'stableford'
+  if (formatRequiresTeams) {
+    const allPlayerIds = input.groups.flatMap(g => g.player_ids)
+
+    // Must have exactly 4 players for v1
+    if (allPlayerIds.length !== 4) {
+      return {
+        success: false,
+        error: 'Points Hi/Lo and Stableford formats require exactly 4 players'
+      }
+    }
+
+    // Must have team assignments
+    if (!input.team_assignments) {
+      return {
+        success: false,
+        error: 'Team assignments required for this format'
+      }
+    }
+
+    // Validate 2 players per team
+    const team1Count = allPlayerIds.filter(id => input.team_assignments![id] === 1).length
+    const team2Count = allPlayerIds.filter(id => input.team_assignments![id] === 2).length
+
+    if (team1Count !== 2 || team2Count !== 2) {
+      return {
+        success: false,
+        error: 'Each team must have exactly 2 players'
+      }
+    }
+  }
+
   try {
     // Create the round
     const { data: round, error: roundError } = await supabase
@@ -487,7 +525,8 @@ export async function createRoundWithGroupsAction(
         tee_id: input.tee_id ?? null,
         name: input.name,
         date: input.date,
-        format: input.format || 'match_play',
+        tee_time: input.tee_time ?? null,
+        format: input.format || 'stroke_play',
         scoring_basis: input.scoring_basis || 'net',
         status: 'upcoming',
       })
@@ -519,11 +558,12 @@ export async function createRoundWithGroupsAction(
         continue
       }
 
-      // Add players to group
+      // Add players to group with team assignments
       const groupPlayersData = groupInput.player_ids.map((playerId) => ({
         group_id: group.id,
         player_id: playerId,
         playing_handicap: groupInput.playing_handicaps?.[playerId] ?? null,
+        team_number: input.team_assignments?.[playerId] ?? null,
       }))
 
       if (groupPlayersData.length > 0) {
