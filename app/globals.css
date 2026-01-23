@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-bg-0 text-text-0 font-body;
+    font-feature-settings: "tnum";
+  }
+
+  body {
+    @apply antialiased;
+  }
+}
