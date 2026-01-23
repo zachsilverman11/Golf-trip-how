@@ -7,8 +7,12 @@ import { Card } from '@/components/ui/Card'
 import { Tabs } from '@/components/ui/Tabs'
 import { Badge } from '@/components/ui/Badge'
 import { LeaderboardRow } from '@/components/ui/LeaderboardRow'
+import { MatchStatus } from '@/components/match'
 import { getSpectatorLeaderboardAction } from '@/lib/supabase/leaderboard-actions'
+import { getSpectatorMatchAction } from '@/lib/supabase/match-actions'
+import { formatMoney } from '@/lib/match-utils'
 import type { LeaderboardEntry, TripLeaderboard } from '@/lib/supabase/leaderboard-actions'
+import type { DbMatchWithPresses } from '@/lib/supabase/match-types'
 
 type ScoringMode = 'net' | 'gross'
 
@@ -22,21 +26,33 @@ export default function SpectatorPage() {
     par: 72,
     holesTotal: 18,
   })
+  const [match, setMatch] = useState<DbMatchWithPresses | null>(null)
+  const [matchTeamNames, setMatchTeamNames] = useState<{ teamA: string; teamB: string }>({ teamA: '', teamB: '' })
   const [scoringMode, setScoringMode] = useState<ScoringMode>('net')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
 
   const loadData = async () => {
-    const result = await getSpectatorLeaderboardAction(token)
+    const [leaderboardResult, matchResult] = await Promise.all([
+      getSpectatorLeaderboardAction(token),
+      getSpectatorMatchAction(token),
+    ])
 
-    if (result.error) {
-      setError(result.error)
+    if (leaderboardResult.error) {
+      setError(leaderboardResult.error)
     } else {
-      setTrip(result.trip || null)
-      setLeaderboard(result.leaderboard)
+      setTrip(leaderboardResult.trip || null)
+      setLeaderboard(leaderboardResult.leaderboard)
       setError(null)
     }
+
+    // Set match data if available
+    if (matchResult.match) {
+      setMatch(matchResult.match)
+      setMatchTeamNames({ teamA: matchResult.teamANames, teamB: matchResult.teamBNames })
+    }
+
     setLastUpdate(new Date())
     setLoading(false)
   }
@@ -163,6 +179,44 @@ export default function SpectatorPage() {
                 ] : []}
               />
             ))}
+          </Card>
+        )}
+
+        {/* Match Status (if exists) */}
+        {match && (
+          <Card className="mt-4 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-display font-bold text-text-0">Match</h2>
+              {match.status === 'in_progress' && (
+                <Badge variant="live">Live</Badge>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="text-sm">
+                  <span className="font-medium text-text-0">{matchTeamNames.teamA}</span>
+                  <span className="text-text-2 mx-2">vs</span>
+                  <span className="font-medium text-text-0">{matchTeamNames.teamB}</span>
+                </div>
+                <div className="text-xs text-text-2 mt-1">
+                  {match.match_type.toUpperCase()} • {formatMoney(match.stake_per_hole)}/hole
+                  {match.presses.length > 0 && ` • ${match.presses.length} press${match.presses.length > 1 ? 'es' : ''}`}
+                </div>
+              </div>
+              <div className="text-right">
+                {match.status === 'completed' ? (
+                  <Badge variant="gold">{match.final_result}</Badge>
+                ) : (
+                  <>
+                    <MatchStatus lead={match.current_lead} />
+                    <div className="text-xs text-text-2 mt-0.5">
+                      thru {match.holes_played}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </Card>
         )}
 

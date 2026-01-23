@@ -7,9 +7,12 @@ import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { GroupScorer } from '@/components/scoring/GroupScorer'
+import { MatchStrip } from '@/components/match'
 import { getRoundAction, updateRoundAction } from '@/lib/supabase/round-actions'
 import { getRoundScoresMapAction, upsertScoreAction } from '@/lib/supabase/score-actions'
+import { getMatchStateAction, syncMatchStateAction } from '@/lib/supabase/match-actions'
 import type { DbRoundWithGroups, DbHole } from '@/lib/supabase/types'
+import type { MatchState } from '@/lib/supabase/match-types'
 
 interface Player {
   id: string
@@ -32,16 +35,19 @@ export default function ScorePage() {
 
   const [round, setRound] = useState<DbRoundWithGroups | null>(null)
   const [scores, setScores] = useState<{ [playerId: string]: { [hole: number]: number | null } }>({})
+  const [matchState, setMatchState] = useState<MatchState | null>(null)
+  const [currentHole, setCurrentHole] = useState(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Load round and scores
+  // Load round, scores, and match
   useEffect(() => {
     const loadData = async () => {
-      const [roundResult, scoresResult] = await Promise.all([
+      const [roundResult, scoresResult, matchResult] = await Promise.all([
         getRoundAction(roundId),
         getRoundScoresMapAction(roundId),
+        getMatchStateAction(roundId),
       ])
 
       if (roundResult.error || !roundResult.round) {
@@ -52,11 +58,31 @@ export default function ScorePage() {
 
       setRound(roundResult.round)
       setScores(scoresResult.scores)
+
+      // Set match state if exists
+      if (matchResult.success && matchResult.state) {
+        setMatchState(matchResult.state)
+      }
+
       setLoading(false)
     }
 
     loadData()
   }, [roundId])
+
+  // Refresh match state
+  const refreshMatchState = useCallback(async () => {
+    if (!matchState) return
+
+    // First sync the match state with current scores
+    await syncMatchStateAction(matchState.matchId)
+
+    // Then get the updated state
+    const result = await getMatchStateAction(roundId)
+    if (result.success && result.state) {
+      setMatchState(result.state)
+    }
+  }, [roundId, matchState])
 
   // Extract players from all groups
   const players: Player[] = round?.groups?.flatMap((group) =>
@@ -93,6 +119,9 @@ export default function ScorePage() {
     holeNumber: number,
     grossStrokes: number | null
   ) => {
+    // Track current hole
+    setCurrentHole(holeNumber)
+
     // Optimistic update
     setScores((prev) => ({
       ...prev,
@@ -115,8 +144,14 @@ export default function ScorePage() {
       console.error('Failed to save score:', result.error)
       // Could revert optimistic update here if needed
     }
+
+    // Refresh match state if there's an active match
+    if (matchState) {
+      await refreshMatchState()
+    }
+
     setSaving(false)
-  }, [roundId])
+  }, [roundId, matchState, refreshMatchState])
 
   // Handle round completion
   const handleComplete = async () => {
@@ -177,6 +212,18 @@ export default function ScorePage() {
           <Badge variant="live">Live</Badge>
         </div>
       </div>
+
+      {/* Match Strip (if match exists) */}
+      {matchState && (
+        <MatchStrip
+          matchState={matchState}
+          currentHole={currentHole}
+          tripId={tripId}
+          roundId={roundId}
+          onPressAdded={refreshMatchState}
+          className="mb-4"
+        />
+      )}
 
       {/* Scorer */}
       {players.length > 0 ? (

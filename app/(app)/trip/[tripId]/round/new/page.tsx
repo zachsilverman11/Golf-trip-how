@@ -8,10 +8,13 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Divider } from '@/components/ui/Divider'
+import { MatchSetupForm, MatchSetupToggle } from '@/components/match'
 import { getPlayersAction } from '@/lib/supabase/player-actions'
 import { getCoursesAction } from '@/lib/supabase/actions'
 import { createRoundWithGroupsAction } from '@/lib/supabase/round-actions'
+import { createMatchAction } from '@/lib/supabase/match-actions'
 import type { DbPlayer, DbCourseWithTees } from '@/lib/supabase/types'
+import type { CreateMatchInput } from '@/lib/supabase/match-types'
 
 interface GroupConfig {
   id: string
@@ -36,6 +39,11 @@ export default function NewRoundPage() {
   const [groups, setGroups] = useState<GroupConfig[]>([
     { id: '1', playerIds: [], teeTime: '' },
   ])
+
+  // Match setup
+  const [matchEnabled, setMatchEnabled] = useState(false)
+  const [matchConfig, setMatchConfig] = useState<Omit<CreateMatchInput, 'roundId'> | null>(null)
+  const [showMatchSetup, setShowMatchSetup] = useState(false)
 
   // Data
   const [players, setPlayers] = useState<DbPlayer[]>([])
@@ -142,6 +150,19 @@ export default function NewRoundPage() {
     })
 
     if (result.success && result.roundId) {
+      // Create match if configured
+      if (matchEnabled && matchConfig) {
+        const matchResult = await createMatchAction({
+          ...matchConfig,
+          roundId: result.roundId,
+        })
+
+        if (!matchResult.success) {
+          console.error('Failed to create match:', matchResult.error)
+          // Continue to round page even if match creation fails
+        }
+      }
+
       router.push(`/trip/${tripId}/round/${result.roundId}`)
     } else {
       setError(result.error || 'Failed to create round')
@@ -409,6 +430,36 @@ export default function NewRoundPage() {
             </div>
           )}
         </Card>
+
+        {/* Money Game (Match Setup) */}
+        {assignedPlayerIds.size >= 2 && (
+          <div className="mb-4">
+            {showMatchSetup ? (
+              <MatchSetupForm
+                players={players.filter((p) => assignedPlayerIds.has(p.id))}
+                onMatchConfigured={(config) => {
+                  setMatchConfig(config)
+                  setMatchEnabled(true)
+                  setShowMatchSetup(false)
+                }}
+                onCancel={() => setShowMatchSetup(false)}
+              />
+            ) : (
+              <MatchSetupToggle
+                enabled={matchEnabled}
+                onToggle={(enabled) => {
+                  setMatchEnabled(enabled)
+                  if (!enabled) {
+                    setMatchConfig(null)
+                  }
+                }}
+                matchConfig={matchConfig}
+                onConfigure={() => setShowMatchSetup(true)}
+                players={players.filter((p) => assignedPlayerIds.has(p.id))}
+              />
+            )}
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 rounded-card bg-bad/10 p-4 text-bad">
