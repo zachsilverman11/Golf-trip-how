@@ -162,3 +162,19 @@ export interface DbGroupWithPlayers extends DbGroup {
 export interface DbPlayerWithScores extends DbPlayer {
   scores: DbScore[]
 }
+
+// Minimal round data for Trip HQ display
+export interface DbRoundSummary {
+  id: string
+  name: string
+  date: string
+  status: 'upcoming' | 'in_progress' | 'completed'
+}
+
+// Extended trip type with counts for Trip HQ
+export interface DbTripWithCounts extends DbTrip {
+  trip_members: DbTripMember[]
+  playerCount: number
+  roundCount: number
+  recentRounds: DbRoundSummary[]
+}

@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from './server'
-import type { DbTrip, DbTripWithMembers, DbTripInsert, DbTripMember } from './types'
+import type { DbTrip, DbTripWithMembers, DbTripWithCounts, DbTripInsert, DbTripMember, DbRoundSummary } from './types'
 import { getCurrentUser } from './auth-actions'
 import { revalidatePath } from 'next/cache'
 
@@ -130,7 +130,7 @@ export async function getTripsAction(): Promise<{
 // ============================================================================
 
 export async function getTripAction(tripId: string): Promise<{
-  trip?: DbTripWithMembers
+  trip?: DbTripWithCounts
   userRole?: 'admin' | 'member'
   error?: string
 }> {
@@ -142,11 +142,14 @@ export async function getTripAction(tripId: string): Promise<{
   }
 
   try {
+    // Fetch trip with members, player count, and minimal round data
     const { data: trip, error } = await supabase
       .from('trips')
       .select(`
         *,
-        trip_members (*)
+        trip_members (*),
+        players (id),
+        rounds (id, name, date, status)
       `)
       .eq('id', tripId)
       .single()
@@ -162,8 +165,28 @@ export async function getTripAction(tripId: string): Promise<{
       return { error: 'Not a member of this trip' }
     }
 
+    // Extract counts and minimal round data
+    const players = trip.players as { id: string }[] | null
+    const rounds = trip.rounds as DbRoundSummary[] | null
+    const playerCount = players?.length || 0
+    const roundCount = rounds?.length || 0
+
+    // Get recent rounds (sorted by date desc, limit 5)
+    const recentRounds = (rounds || [])
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5)
+
+    // Remove the raw arrays and add computed fields
+    const { players: _p, rounds: _r, ...tripBase } = trip
+
     return {
-      trip: trip as DbTripWithMembers,
+      trip: {
+        ...tripBase,
+        trip_members: trip.trip_members,
+        playerCount,
+        roundCount,
+        recentRounds,
+      } as DbTripWithCounts,
       userRole: membership.role,
     }
   } catch (err) {
