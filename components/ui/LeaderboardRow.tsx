@@ -6,6 +6,9 @@ interface LeaderboardRowProps {
   rank: number
   name: string
   score: number
+  netScore?: number
+  grossScore?: number
+  showNet?: boolean
   delta?: number
   thru?: number | string
   isCurrentUser?: boolean
@@ -20,12 +23,20 @@ export function LeaderboardRow({
   rank,
   name,
   score,
+  netScore,
+  grossScore,
+  showNet = true,
   delta,
   thru,
   isCurrentUser = false,
   badges = [],
   className,
 }: LeaderboardRowProps) {
+  // Use netScore/grossScore if provided, otherwise fall back to score
+  const displayScore = showNet
+    ? (netScore ?? score)
+    : (grossScore ?? score)
+
   return (
     <div
       className={cn(
@@ -58,6 +69,12 @@ export function LeaderboardRow({
             ))}
           </div>
         )}
+        {/* Show both scores if available */}
+        {netScore !== undefined && grossScore !== undefined && (
+          <span className="text-xs text-text-2">
+            {showNet ? `Gross: ${grossScore}` : `Net: ${netScore}`}
+          </span>
+        )}
       </div>
 
       {/* Thru */}
@@ -72,7 +89,7 @@ export function LeaderboardRow({
 
       {/* Score */}
       <span className="min-w-[3.5rem] text-right font-display text-[2.25rem] font-bold tabular-nums text-text-0">
-        {score}
+        {displayScore}
       </span>
     </div>
   )

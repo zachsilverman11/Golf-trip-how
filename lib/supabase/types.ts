@@ -2,6 +2,10 @@
  * Database types for Supabase tables
  */
 
+// ============================================================================
+// COURSE TYPES
+// ============================================================================
+
 export interface DbCourse {
   id: string
   name: string
@@ -49,4 +53,112 @@ export interface DbTeeWithHoles extends DbTee {
 
 export interface DbCourseWithTees extends DbCourse {
   tees: DbTeeWithHoles[]
+}
+
+// ============================================================================
+// TRIP TYPES
+// ============================================================================
+
+export interface DbTrip {
+  id: string
+  name: string
+  description: string | null
+  start_date: string | null
+  end_date: string | null
+  created_by: string | null
+  spectator_token: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DbTripMember {
+  id: string
+  trip_id: string
+  user_id: string
+  role: 'admin' | 'member'
+  created_at: string
+  updated_at: string
+}
+
+export interface DbPlayer {
+  id: string
+  trip_id: string
+  name: string
+  handicap_index: number | null
+  user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DbRound {
+  id: string
+  trip_id: string
+  tee_id: string | null
+  name: string
+  date: string
+  status: 'upcoming' | 'in_progress' | 'completed'
+  format: 'stroke_play' | 'best_ball' | 'scramble' | 'match_play'
+  scoring_basis: 'gross' | 'net'
+  created_at: string
+  updated_at: string
+}
+
+export interface DbGroup {
+  id: string
+  round_id: string
+  group_number: number
+  scorer_player_id: string | null
+  tee_time: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DbGroupPlayer {
+  id: string
+  group_id: string
+  player_id: string
+  playing_handicap: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DbScore {
+  id: string
+  round_id: string
+  player_id: string
+  hole_number: number
+  gross_strokes: number | null
+  created_at: string
+  updated_at: string
+}
+
+// Insert types
+export type DbTripInsert = Omit<DbTrip, 'id' | 'created_at' | 'updated_at' | 'spectator_token'>
+export type DbTripMemberInsert = Omit<DbTripMember, 'id' | 'created_at' | 'updated_at'>
+export type DbPlayerInsert = Omit<DbPlayer, 'id' | 'created_at' | 'updated_at'>
+export type DbRoundInsert = Omit<DbRound, 'id' | 'created_at' | 'updated_at'>
+export type DbGroupInsert = Omit<DbGroup, 'id' | 'created_at' | 'updated_at'>
+export type DbGroupPlayerInsert = Omit<DbGroupPlayer, 'id' | 'created_at' | 'updated_at'>
+export type DbScoreInsert = Omit<DbScore, 'id' | 'created_at' | 'updated_at'>
+
+// Join types for queries
+export interface DbTripWithMembers extends DbTrip {
+  trip_members: DbTripMember[]
+}
+
+export interface DbRoundWithTee extends DbRound {
+  tees: DbTeeWithHoles | null
+}
+
+export interface DbRoundWithGroups extends DbRound {
+  groups: DbGroupWithPlayers[]
+  tees: DbTeeWithHoles | null
+}
+
+export interface DbGroupWithPlayers extends DbGroup {
+  group_players: (DbGroupPlayer & { players: DbPlayer })[]
+}
+
+export interface DbPlayerWithScores extends DbPlayer {
+  scores: DbScore[]
 }

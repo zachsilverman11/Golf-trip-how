@@ -1,11 +1,13 @@
 'use client'
 
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
   id: string
   label: string
   icon: React.ReactNode
+  href?: string
 }
 
 interface BottomNavProps {
@@ -31,17 +33,34 @@ export function BottomNav({
       <div className="mx-auto flex max-w-content items-center justify-around">
         {items.map((item) => {
           const isActive = item.id === activeItem
+          const content = (
+            <>
+              <span className="h-6 w-6">{item.icon}</span>
+              <span className="text-xs font-medium">{item.label}</span>
+            </>
+          )
+
+          const className = cn(
+            'flex min-h-row min-w-[64px] flex-col items-center justify-center gap-1 px-2 py-2 transition-colors duration-tap',
+            isActive ? 'text-accent' : 'text-text-2 hover:text-text-1'
+          )
+
+          // Use Link if href is provided, otherwise use button
+          if (item.href) {
+            return (
+              <Link key={item.id} href={item.href} className={className}>
+                {content}
+              </Link>
+            )
+          }
+
           return (
             <button
               key={item.id}
               onClick={() => onChange?.(item.id)}
-              className={cn(
-                'flex min-h-row min-w-[64px] flex-col items-center justify-center gap-1 px-2 py-2 transition-colors duration-tap',
-                isActive ? 'text-accent' : 'text-text-2 hover:text-text-1'
-              )}
+              className={className}
             >
-              <span className="h-6 w-6">{item.icon}</span>
-              <span className="text-xs font-medium">{item.label}</span>
+              {content}
             </button>
           )
         })}
