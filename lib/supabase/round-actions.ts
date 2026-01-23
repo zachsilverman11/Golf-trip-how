@@ -22,7 +22,7 @@ export interface CreateRoundInput {
   tee_id?: string | null
   name: string
   date: string
-  format?: 'stroke_play' | 'best_ball' | 'scramble' | 'match_play'
+  format?: 'match_play' | 'points' | 'stableford' | 'stroke_play' | 'best_ball' | 'scramble'
   scoring_basis?: 'gross' | 'net'
 }
 
@@ -30,7 +30,7 @@ export interface UpdateRoundInput {
   name?: string
   date?: string
   status?: 'upcoming' | 'in_progress' | 'completed'
-  format?: 'stroke_play' | 'best_ball' | 'scramble' | 'match_play'
+  format?: 'match_play' | 'points' | 'stableford' | 'stroke_play' | 'best_ball' | 'scramble'
   scoring_basis?: 'gross' | 'net'
   tee_id?: string | null
 }
@@ -168,7 +168,7 @@ export async function createRoundAction(input: CreateRoundInput): Promise<RoundA
         tee_id: input.tee_id ?? null,
         name: input.name,
         date: input.date,
-        format: input.format || 'stroke_play',
+        format: input.format || 'match_play',
         scoring_basis: input.scoring_basis || 'net',
         status: 'upcoming',
       })
@@ -487,7 +487,7 @@ export async function createRoundWithGroupsAction(
         tee_id: input.tee_id ?? null,
         name: input.name,
         date: input.date,
-        format: input.format || 'stroke_play',
+        format: input.format || 'match_play',
         scoring_basis: input.scoring_basis || 'net',
         status: 'upcoming',
       })

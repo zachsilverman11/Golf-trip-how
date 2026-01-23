@@ -116,22 +116,24 @@ export default async function TripPage({ params }: TripPageProps) {
           </Link>
 
           {/* Courses Card (optional, soft framing) */}
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
-                  <MapIcon />
+          <Link href="/courses">
+            <Card className="p-4 transition-all hover:border-accent/50 active:scale-[0.99]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+                    <MapIcon />
+                  </div>
+                  <div>
+                    <p className="font-medium text-text-0">Trip Courses</p>
+                    <p className="text-xs text-text-2">
+                      Add courses for quick round setup
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium text-text-0">Trip Courses</p>
-                  <p className="text-xs text-text-2">
-                    Add for quick round setup; you can also add during round creation
-                  </p>
-                </div>
+                <ChevronRightIcon />
               </div>
-              <Badge variant="default">Optional</Badge>
-            </div>
-          </Card>
+            </Card>
+          </Link>
 
           {/* Spectator Link (admin only, secondary style) */}
           {isAdmin && trip.spectator_token && (

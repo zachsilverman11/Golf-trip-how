@@ -11,16 +11,24 @@ export interface AuthResult {
 
 /**
  * Send magic link email for passwordless authentication
+ * @param email - User's email address
+ * @param redirectTo - Optional path to redirect to after auth (e.g., '/trip/123')
  */
-export async function signInWithMagicLink(email: string): Promise<AuthResult> {
+export async function signInWithMagicLink(email: string, redirectTo?: string): Promise<AuthResult> {
   const supabase = createClient()
   const headersList = headers()
   const origin = headersList.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
+  // Build callback URL with optional redirect
+  let callbackUrl = `${origin}/auth/callback`
+  if (redirectTo) {
+    callbackUrl += `?next=${encodeURIComponent(redirectTo)}`
+  }
+
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: `${origin}/auth/callback`,
+      emailRedirectTo: callbackUrl,
     },
   })
 

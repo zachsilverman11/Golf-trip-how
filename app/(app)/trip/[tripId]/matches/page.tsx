@@ -121,7 +121,7 @@ function MatchCard({ match, tripId }: { match: TripMatchSummary; tripId: string 
               </span>
             </div>
             <div className="text-xs text-text-2 mt-1">
-              {match.matchType.toUpperCase()} • {formatMoney(match.stakePerHole)}/hole
+              {match.matchType.toUpperCase()} • {formatMoney(match.stakePerMan)}/man
               {match.pressCount > 0 && ` • ${match.pressCount} press${match.pressCount > 1 ? 'es' : ''}`}
             </div>
           </div>

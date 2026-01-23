@@ -20,7 +20,8 @@ function LoginForm() {
     setLoading(true)
     setError(null)
 
-    const result = await signInWithMagicLink(email)
+    // Pass redirect path so user returns to their intended page after auth
+    const result = await signInWithMagicLink(email, redirect || undefined)
 
     if (result.success) {
       setSent(true)

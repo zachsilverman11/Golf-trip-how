@@ -6,7 +6,7 @@
 
 import { createClient } from './server'
 import type { DbCourse, DbTee, DbHole, DbCourseWithTees } from './types'
-import type { HoleInfo } from '@/lib/api/types'
+import type { HoleInfo, ApiCourse, ApiTee } from '@/lib/api/types'
 
 // ============================================================================
 // Types for action parameters
@@ -269,4 +269,49 @@ export async function searchSavedCoursesAction(query: string): Promise<{
       error: err instanceof Error ? err.message : 'Search failed',
     }
   }
+}
+
+// ============================================================================
+// Import Course from API (convenience wrapper around saveCourseAction)
+// ============================================================================
+
+export async function importCourseAction(
+  course: ApiCourse,
+  tee: ApiTee
+): Promise<SaveCourseResult> {
+  // Build hole info from the API tee data
+  const holes: HoleInfo[] = tee.holes.map((hole, index) => ({
+    number: index + 1,
+    par: hole.par,
+    strokeIndex: hole.handicap || (index + 1), // Use handicap as stroke index, or default to hole number
+    yards: hole.yardage,
+  }))
+
+  // Calculate total par from holes
+  const totalPar = holes.reduce((sum, h) => sum + h.par, 0)
+
+  // Build location string
+  const location = [
+    course.location?.city,
+    course.location?.state,
+    course.location?.country,
+  ]
+    .filter(Boolean)
+    .join(', ')
+
+  // Use existing saveCourseAction
+  return saveCourseAction({
+    courseName: course.club_name || course.course_name || 'Unknown Course',
+    location,
+    country: course.location?.country === 'Canada' ? 'CA' : 'US',
+    externalProvider: 'golfcourseapi',
+    externalId: String(course.id),
+    teeName: tee.tee_name,
+    rating: tee.course_rating,
+    slope: tee.slope_rating,
+    par: totalPar,
+    yards: tee.total_yards,
+    gender: 'male', // API tees are already gender-filtered
+    holes,
+  })
 }

@@ -13,6 +13,28 @@ interface PlayerFormProps {
   loading?: boolean
 }
 
+// Format handicap for display: negative values show as "+" (plus handicap)
+function formatHandicapForDisplay(value: number | null): string {
+  if (value === null) return ''
+  if (value < 0) return `+${Math.abs(value)}`
+  return String(value)
+}
+
+// Parse handicap input: "+X" becomes -X (plus handicap stored as negative)
+function parseHandicapInput(input: string): number | null {
+  const trimmed = input.trim()
+  if (!trimmed) return null
+
+  // Handle "+" prefix for plus handicaps
+  if (trimmed.startsWith('+')) {
+    const num = parseFloat(trimmed.slice(1))
+    return isNaN(num) ? null : -num // Store plus handicaps as negative
+  }
+
+  const num = parseFloat(trimmed)
+  return isNaN(num) ? null : num
+}
+
 export function PlayerForm({
   initialName = '',
   initialHandicap = null,
@@ -23,12 +45,12 @@ export function PlayerForm({
 }: PlayerFormProps) {
   const [name, setName] = useState(initialName)
   const [handicap, setHandicap] = useState<string>(
-    initialHandicap !== null ? String(initialHandicap) : ''
+    formatHandicapForDisplay(initialHandicap)
   )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const handicapValue = handicap.trim() ? parseFloat(handicap) : null
+    const handicapValue = parseHandicapInput(handicap)
     await onSubmit(name.trim(), handicapValue)
   }
 
@@ -55,17 +77,15 @@ export function PlayerForm({
             Handicap Index
           </label>
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             value={handicap}
             onChange={(e) => setHandicap(e.target.value)}
-            placeholder="e.g., 12.4"
-            step="0.1"
-            min="-10"
-            max="54"
+            placeholder="e.g., 12.4 or +2.0"
             className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 placeholder:text-text-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
           <p className="mt-1 text-xs text-text-2">
-            Leave blank if unknown
+            Use + for plus handicaps (e.g., +0.5). Leave blank if unknown.
           </p>
         </div>
 

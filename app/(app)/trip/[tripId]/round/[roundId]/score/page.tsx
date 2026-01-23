@@ -56,6 +56,17 @@ export default function ScorePage() {
         return
       }
 
+      // Check if round has proper tee data
+      const hasTeeData = !!roundResult.round.tees &&
+        Array.isArray((roundResult.round.tees as any).holes) &&
+        (roundResult.round.tees as any).holes.length > 0
+
+      if (!hasTeeData) {
+        // Redirect to setup page if no tee data
+        router.replace(`/trip/${tripId}/round/${roundId}/setup`)
+        return
+      }
+
       setRound(roundResult.round)
       setScores(scoresResult.scores)
 
@@ -93,7 +104,7 @@ export default function ScorePage() {
     })).filter((p) => p.id) || []
   ) || []
 
-  // Extract hole info from tee
+  // Extract hole info from tee (guaranteed to exist due to redirect guard above)
   const holes: HoleInfo[] = (round?.tees?.holes || [])
     .sort((a: DbHole, b: DbHole) => a.hole_number - b.hole_number)
     .map((h: DbHole) => ({
@@ -102,16 +113,6 @@ export default function ScorePage() {
       strokeIndex: h.stroke_index,
       yards: h.yards,
     }))
-
-  // Default holes if no tee selected
-  const effectiveHoles: HoleInfo[] = holes.length > 0
-    ? holes
-    : Array.from({ length: 18 }, (_, i) => ({
-        number: i + 1,
-        par: 4,
-        strokeIndex: i + 1,
-        yards: null,
-      }))
 
   // Handle score change with optimistic update and save
   const handleScoreChange = useCallback(async (
@@ -230,7 +231,7 @@ export default function ScorePage() {
         <GroupScorer
           roundId={roundId}
           players={players}
-          holes={effectiveHoles}
+          holes={holes}
           scores={scores}
           onScoreChange={handleScoreChange}
           onComplete={handleComplete}

@@ -18,7 +18,7 @@ export interface DbMatch {
   id: string
   round_id: string
   match_type: MatchType
-  stake_per_hole: number
+  stake_per_man: number // Stakes are PER PLAYER, not per team
 
   // Team A
   team_a_player1_id: string
@@ -43,7 +43,7 @@ export interface DbPress {
   id: string
   match_id: string
   starting_hole: number
-  stake_per_hole: number // Frozen at creation
+  stake_per_man: number // Frozen at creation, same as match stake_per_man
 
   // Press state
   status: MatchStatus
@@ -97,7 +97,7 @@ export interface PressState {
   id: string
   pressNumber: number // 1, 2, 3, etc.
   startingHole: number
-  stakePerHole: number
+  stakePerMan: number // Same as match stake_per_man
   status: MatchStatus
   winner: MatchWinner
   finalResult: string | null
@@ -115,7 +115,7 @@ export interface MatchState {
   matchId: string
   roundId: string
   matchType: MatchType
-  stakePerHole: number
+  stakePerMan: number // Stakes are PER PLAYER
   status: MatchStatus
   winner: MatchWinner
   finalResult: string | null
@@ -179,7 +179,7 @@ export interface ExposureInfo {
 export interface CreateMatchInput {
   roundId: string
   matchType: MatchType
-  stakePerHole: number
+  stakePerMan: number // Stakes are PER PLAYER
   teamAPlayer1Id: string
   teamAPlayer2Id?: string // Required for 2v2
   teamBPlayer1Id: string
@@ -189,11 +189,12 @@ export interface CreateMatchInput {
 export interface AddPressInput {
   matchId: string
   startingHole: number
+  // Note: Presses ALWAYS inherit stake_per_man from the main match
 }
 
 export interface UpdateMatchStakesInput {
   matchId: string
-  stakePerHole: number
+  stakePerMan: number
 }
 
 // ============================================================================

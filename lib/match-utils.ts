@@ -379,7 +379,7 @@ export function computeMatchState(
       id: press.id,
       pressNumber: index + 1,
       startingHole: press.starting_hole,
-      stakePerHole: press.stake_per_hole,
+      stakePerMan: press.stake_per_man,
       status: pressStatus,
       winner: pressWinner,
       finalResult: pressFinalResult,
@@ -393,7 +393,7 @@ export function computeMatchState(
     matchId: match.id,
     roundId: match.round_id,
     matchType: match.match_type,
-    stakePerHole: match.stake_per_hole,
+    stakePerMan: match.stake_per_man,
     status,
     winner,
     finalResult,
@@ -414,15 +414,24 @@ export function computeMatchState(
 // ============================================================================
 
 /**
- * Calculate what's at stake for a specific hole
- * This is the "hero" element: "This hole: $X on the line"
+ * Calculate what's at stake for a specific hole (per man)
+ * This is the "hero" element: "This hole: $X per man"
+ *
+ * Stakes are PER MAN:
+ * - If stake_per_man = $10 and there's 1 active press, each man has $20 on the line
+ * - In a 2v2, the total pot for the hole would be $20 x 4 = $80
  */
 export function getHoleMatchInfo(
   matchState: MatchState,
   currentHole: number
 ): HoleMatchInfo {
-  // Main match stake for this hole
-  const mainMatchStake = matchState.isMatchClosed ? 0 : matchState.stakePerHole
+  // Count active bets (main match + active presses)
+  const activePressCount = matchState.presses.filter(
+    (p) => p.startingHole <= currentHole && p.status === 'in_progress'
+  ).length
+
+  // Main match stake for this hole (per man)
+  const mainMatchStake = matchState.isMatchClosed ? 0 : matchState.stakePerMan
 
   // Active press stakes for this hole
   const pressBreakdown = matchState.presses
@@ -433,9 +442,10 @@ export function getHoleMatchInfo(
     )
     .map((p) => ({
       pressNumber: p.pressNumber,
-      amount: p.stakePerHole,
+      amount: p.stakePerMan,
     }))
 
+  // Total at stake PER MAN for this hole
   const totalAtStake =
     mainMatchStake +
     pressBreakdown.reduce((sum, p) => sum + p.amount, 0)
@@ -468,31 +478,35 @@ export function getHoleMatchInfo(
 // ============================================================================
 
 /**
- * Calculate total exposure (maximum potential loss)
+ * Calculate total exposure per man (maximum potential loss for one player)
+ *
+ * All values are PER MAN:
+ * - If stake_per_man = $10 and you lose 3 holes, you're down $30 per man
+ * - In a 2v2, your team would be down $60 total, but each player loses $30
  */
 export function calculateExposure(matchState: MatchState): ExposureInfo {
-  // Main match exposure: stake × holes remaining (if not closed)
+  // Main match exposure per man: stake × holes remaining (if not closed)
   const mainMatchExposure = matchState.isMatchClosed
-    ? Math.abs(matchState.currentLead) * matchState.stakePerHole
-    : matchState.holesRemaining * matchState.stakePerHole
+    ? Math.abs(matchState.currentLead) * matchState.stakePerMan
+    : matchState.holesRemaining * matchState.stakePerMan
 
-  // Press exposures
+  // Press exposures per man
   const pressExposures = matchState.presses.map((press) => ({
     pressNumber: press.pressNumber,
     exposure:
       press.status === 'completed'
-        ? Math.abs(press.currentLead) * press.stakePerHole
-        : press.holesRemaining * press.stakePerHole,
+        ? Math.abs(press.currentLead) * press.stakePerMan
+        : press.holesRemaining * press.stakePerMan,
   }))
 
   const totalExposure =
     mainMatchExposure +
     pressExposures.reduce((sum, p) => sum + p.exposure, 0)
 
-  // Current position: positive if winning, negative if losing
-  const mainPosition = matchState.currentLead * matchState.stakePerHole
+  // Current position per man: positive if winning, negative if losing
+  const mainPosition = matchState.currentLead * matchState.stakePerMan
   const pressPositions = matchState.presses.reduce(
-    (sum, p) => sum + p.currentLead * p.stakePerHole,
+    (sum, p) => sum + p.currentLead * p.stakePerMan,
     0
   )
   const currentPosition = mainPosition + pressPositions

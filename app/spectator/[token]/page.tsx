@@ -200,7 +200,7 @@ export default function SpectatorPage() {
                   <span className="font-medium text-text-0">{matchTeamNames.teamB}</span>
                 </div>
                 <div className="text-xs text-text-2 mt-1">
-                  {match.match_type.toUpperCase()} • {formatMoney(match.stake_per_hole)}/hole
+                  {match.match_type.toUpperCase()} • {formatMoney(match.stake_per_man)}/man
                   {match.presses.length > 0 && ` • ${match.presses.length} press${match.presses.length > 1 ? 'es' : ''}`}
                 </div>
               </div>

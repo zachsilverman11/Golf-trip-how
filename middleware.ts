@@ -58,9 +58,20 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Root route - redirect based on auth status
+  if (request.nextUrl.pathname === '/') {
+    if (user) {
+      return NextResponse.redirect(new URL('/trips', request.url))
+    } else {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+  }
+
   // Protected routes - redirect to login if not authenticated
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/trips') ||
-    request.nextUrl.pathname.startsWith('/trip/')
+    request.nextUrl.pathname.startsWith('/trip/') ||
+    request.nextUrl.pathname.startsWith('/courses') ||
+    request.nextUrl.pathname.startsWith('/course/')
 
   if (isProtectedRoute && !user) {
     const redirectUrl = new URL('/login', request.url)

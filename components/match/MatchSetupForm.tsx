@@ -30,7 +30,7 @@ export function MatchSetupForm({
   className,
 }: MatchSetupFormProps) {
   const [matchType, setMatchType] = useState<MatchType>('2v2')
-  const [stakePerHole, setStakePerHole] = useState(1)
+  const [stakePerMan, setStakePerMan] = useState(1)
   const [teamA, setTeamA] = useState<string[]>([])
   const [teamB, setTeamB] = useState<string[]>([])
 
@@ -48,7 +48,7 @@ export function MatchSetupForm({
   const isValid =
     teamA.length === requiredTeamSize &&
     teamB.length === requiredTeamSize &&
-    stakePerHole > 0
+    stakePerMan > 0
 
   // Add player to team
   const addToTeam = useCallback(
@@ -88,7 +88,7 @@ export function MatchSetupForm({
 
     onMatchConfigured({
       matchType,
-      stakePerHole,
+      stakePerMan,
       teamAPlayer1Id: teamA[0],
       teamAPlayer2Id: matchType === '2v2' ? teamA[1] : undefined,
       teamBPlayer1Id: teamB[0],
@@ -141,23 +141,24 @@ export function MatchSetupForm({
 
       {/* Stake Input */}
       <div className="mb-4">
-        <label className="block text-sm text-text-2 mb-2">Stake per Hole</label>
+        <label className="block text-sm text-text-2 mb-2">Stake per Man</label>
         <div className="flex items-center gap-2">
           <span className="text-text-1">$</span>
           <input
             type="number"
             min="1"
             step="1"
-            value={stakePerHole}
-            onChange={(e) => setStakePerHole(Math.max(1, parseInt(e.target.value) || 1))}
+            value={stakePerMan}
+            onChange={(e) => setStakePerMan(Math.max(1, parseInt(e.target.value) || 1))}
             className={cn(
               'w-20 px-3 py-2 rounded-lg bg-bg-2 border border-stroke',
               'text-text-0 text-center font-medium',
               'focus:outline-none focus:border-accent'
             )}
           />
-          <span className="text-text-2 text-sm">per hole</span>
+          <span className="text-text-2 text-sm">per man / hole</span>
         </div>
+        <p className="text-xs text-text-2 mt-1">Each player wins/loses this amount per hole won/lost</p>
       </div>
 
       {/* Team Selection */}
@@ -306,54 +307,87 @@ export function MatchSetupToggle({
       .join(' & ')
   }
 
+  // When enabled and no config, auto-open configure
+  const handleToggle = () => {
+    const newEnabled = !enabled
+    onToggle(newEnabled)
+    if (newEnabled && !matchConfig) {
+      // Auto-open configure when enabling for the first time
+      onConfigure()
+    }
+  }
+
   return (
-    <div className={cn('bg-bg-1 border border-stroke rounded-card p-4', className)}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-text-0">Money Game</span>
-          <Badge variant="gold">Optional</Badge>
+    <Card className={cn('p-4', className)}>
+      {/* Header with toggle */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gold/10 text-gold">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <p className="font-medium text-text-0">Money Game</p>
+            <p className="text-xs text-text-2">
+              {enabled && matchConfig
+                ? `${matchConfig.matchType.toUpperCase()} • $${matchConfig.stakePerMan}/man`
+                : 'Add match play betting'}
+            </p>
+          </div>
         </div>
+
+        {/* Toggle switch */}
         <button
-          onClick={() => onToggle(!enabled)}
+          type="button"
+          onClick={handleToggle}
           className={cn(
-            'w-12 h-6 rounded-full transition-colors relative',
+            'relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors',
+            'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-bg-0',
             enabled ? 'bg-accent' : 'bg-bg-2 border border-stroke'
           )}
+          role="switch"
+          aria-checked={enabled}
         >
           <span
             className={cn(
-              'absolute top-1 w-4 h-4 rounded-full bg-white transition-transform',
-              enabled ? 'translate-x-7' : 'translate-x-1'
+              'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition-transform',
+              'absolute top-1',
+              enabled ? 'translate-x-6' : 'translate-x-1'
             )}
           />
         </button>
       </div>
 
-      {enabled && (
-        <div className="mt-3 pt-3 border-t border-stroke/50">
-          {matchConfig ? (
-            <div className="flex items-center justify-between">
-              <div className="text-sm">
-                <div className="text-text-1">
-                  {matchConfig.matchType.toUpperCase()} - ${matchConfig.stakePerHole}/hole
-                </div>
-                <div className="text-text-2 text-xs mt-0.5">
-                  {getTeamNames([matchConfig.teamAPlayer1Id, matchConfig.teamAPlayer2Id])}
-                  {' vs '}
-                  {getTeamNames([matchConfig.teamBPlayer1Id, matchConfig.teamBPlayer2Id])}
-                </div>
+      {/* Match details when enabled and configured */}
+      {enabled && matchConfig && (
+        <div className="mt-4 pt-4 border-t border-stroke/50">
+          <div className="flex items-center justify-between">
+            <div className="text-sm">
+              <div className="font-medium text-text-0">
+                {getTeamNames([matchConfig.teamAPlayer1Id, matchConfig.teamAPlayer2Id])}
+                <span className="text-text-2 mx-2">vs</span>
+                {getTeamNames([matchConfig.teamBPlayer1Id, matchConfig.teamBPlayer2Id])}
               </div>
-              <Button variant="secondary" size="default" onClick={onConfigure}>
-                Edit
-              </Button>
             </div>
-          ) : (
-            <Button variant="secondary" onClick={onConfigure} className="w-full">
-              Configure Match
+            <Button type="button" variant="secondary" size="default" onClick={onConfigure}>
+              Edit
             </Button>
-          )}
+          </div>
         </div>
       )}
-    </div>
+
+      {/* Prompt to configure when enabled but not configured */}
+      {enabled && !matchConfig && (
+        <div className="mt-4 pt-4 border-t border-stroke/50">
+          <p className="text-sm text-text-2 mb-3">
+            Set up teams and stakes for this round.
+          </p>
+          <Button type="button" variant="secondary" onClick={onConfigure} className="w-full">
+            Configure Match
+          </Button>
+        </div>
+      )}
+    </Card>
   )
 }

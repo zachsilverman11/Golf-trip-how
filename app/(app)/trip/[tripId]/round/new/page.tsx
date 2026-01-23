@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
@@ -9,11 +9,11 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Divider } from '@/components/ui/Divider'
 import { MatchSetupForm, MatchSetupToggle } from '@/components/match'
+import { RoundFormatSelector, CourseSelector, type RoundFormat } from '@/components/round'
 import { getPlayersAction } from '@/lib/supabase/player-actions'
-import { getCoursesAction } from '@/lib/supabase/actions'
 import { createRoundWithGroupsAction } from '@/lib/supabase/round-actions'
 import { createMatchAction } from '@/lib/supabase/match-actions'
-import type { DbPlayer, DbCourseWithTees } from '@/lib/supabase/types'
+import type { DbPlayer } from '@/lib/supabase/types'
 import type { CreateMatchInput } from '@/lib/supabase/match-types'
 
 interface GroupConfig {
@@ -30,10 +30,10 @@ export default function NewRoundPage() {
   // Form state
   const [name, setName] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
-  const [format, setFormat] = useState<'stroke_play' | 'best_ball' | 'scramble' | 'match_play'>('stroke_play')
+  const [format, setFormat] = useState<RoundFormat>('match_play')
   const [scoringBasis, setScoringBasis] = useState<'gross' | 'net'>('net')
-  const [selectedCourseId, setSelectedCourseId] = useState<string>('')
-  const [selectedTeeId, setSelectedTeeId] = useState<string>('')
+  const [selectedTeeId, setSelectedTeeId] = useState<string | null>(null)
+  const [selectedCourseName, setSelectedCourseName] = useState<string>('')
 
   // Groups
   const [groups, setGroups] = useState<GroupConfig[]>([
@@ -47,32 +47,25 @@ export default function NewRoundPage() {
 
   // Data
   const [players, setPlayers] = useState<DbPlayer[]>([])
-  const [courses, setCourses] = useState<DbCourseWithTees[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Ref to prevent double submission
+  const isSubmittingRef = useRef(false)
+
   useEffect(() => {
     const loadData = async () => {
-      const [playersResult, coursesResult] = await Promise.all([
-        getPlayersAction(tripId),
-        getCoursesAction(),
-      ])
+      const playersResult = await getPlayersAction(tripId)
 
       if (playersResult.players) {
         setPlayers(playersResult.players)
-      }
-      if (coursesResult.courses) {
-        setCourses(coursesResult.courses)
       }
       setLoading(false)
     }
 
     loadData()
   }, [tripId])
-
-  const selectedCourse = courses.find((c) => c.id === selectedCourseId)
-  const availableTees = selectedCourse?.tees || []
 
   const assignedPlayerIds = new Set(groups.flatMap((g) => g.playerIds))
   const unassignedPlayers = players.filter((p) => !assignedPlayerIds.has(p.id))
@@ -120,8 +113,13 @@ export default function NewRoundPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Prevent double submission
+    if (isSubmittingRef.current) return
+    isSubmittingRef.current = true
+
     if (!name.trim()) {
       setError('Round name is required')
+      isSubmittingRef.current = false
       return
     }
 
@@ -130,6 +128,7 @@ export default function NewRoundPage() {
 
     if (nonEmptyGroups.length === 0) {
       setError('Add at least one player to a group')
+      isSubmittingRef.current = false
       return
     }
 
@@ -167,6 +166,7 @@ export default function NewRoundPage() {
     } else {
       setError(result.error || 'Failed to create round')
       setSubmitting(false)
+      isSubmittingRef.current = false
     }
   }
 
@@ -229,36 +229,23 @@ export default function NewRoundPage() {
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-text-1">
-                  Format
-                </label>
-                <select
-                  value={format}
-                  onChange={(e) => setFormat(e.target.value as typeof format)}
-                  className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                >
-                  <option value="stroke_play">Stroke Play</option>
-                  <option value="best_ball">Best Ball</option>
-                  <option value="scramble">Scramble</option>
-                  <option value="match_play">Match Play</option>
-                </select>
-              </div>
+            <RoundFormatSelector
+              value={format}
+              onChange={setFormat}
+            />
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-text-1">
-                  Scoring
-                </label>
-                <select
-                  value={scoringBasis}
-                  onChange={(e) => setScoringBasis(e.target.value as typeof scoringBasis)}
-                  className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                >
-                  <option value="net">Net (Handicap)</option>
-                  <option value="gross">Gross</option>
-                </select>
-              </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-text-1">
+                Scoring Basis
+              </label>
+              <select
+                value={scoringBasis}
+                onChange={(e) => setScoringBasis(e.target.value as typeof scoringBasis)}
+                className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              >
+                <option value="net">Net (Handicap)</option>
+                <option value="gross">Gross</option>
+              </select>
             </div>
           </div>
         </Card>
@@ -269,71 +256,27 @@ export default function NewRoundPage() {
             Course
           </h2>
 
-          {courses.length === 0 ? (
-            <div className="text-center py-4">
-              <p className="text-text-2 mb-3">No courses added yet</p>
-              <Link href="/course/new">
-                <Button type="button" variant="secondary" size="default">
-                  Add Course
-                </Button>
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-text-1">
-                  Select Course
-                </label>
-                <select
-                  value={selectedCourseId}
-                  onChange={(e) => {
-                    setSelectedCourseId(e.target.value)
-                    setSelectedTeeId('')
-                  }}
-                  className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                >
-                  <option value="">Select a course...</option>
-                  {courses.map((course) => (
-                    <option key={course.id} value={course.id}>
-                      {course.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedCourseId && availableTees.length > 0 && (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-text-1">
-                    Select Tees
-                  </label>
-                  <select
-                    value={selectedTeeId}
-                    onChange={(e) => setSelectedTeeId(e.target.value)}
-                    className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                  >
-                    <option value="">Select tees...</option>
-                    {availableTees.map((tee) => (
-                      <option key={tee.id} value={tee.id}>
-                        {tee.name} ({tee.rating}/{tee.slope}, {tee.yards} yds)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-          )}
+          <CourseSelector
+            selectedTeeId={selectedTeeId}
+            onTeeSelected={(teeId, courseName, teeName) => {
+              setSelectedTeeId(teeId)
+              setSelectedCourseName(courseName)
+            }}
+          />
         </Card>
 
         {/* Groups */}
         <Card className="p-4 mb-4">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-display text-lg font-bold text-text-0">
-              Groups
+              {groups.length === 1 ? 'Players & Tee Time' : 'Groups'}
             </h2>
-            <Button type="button" variant="secondary" size="default" onClick={addGroup}>
-              <PlusIcon />
-              Add Group
-            </Button>
+            {groups.length > 1 || players.length > 4 ? (
+              <Button type="button" variant="secondary" size="default" onClick={addGroup}>
+                <PlusIcon />
+                Add Group
+              </Button>
+            ) : null}
           </div>
 
           {players.length === 0 ? (
@@ -350,21 +293,21 @@ export default function NewRoundPage() {
               {groups.map((group, index) => (
                 <div
                   key={group.id}
-                  className="rounded-card-sm border border-stroke bg-bg-2 p-4"
+                  className={groups.length === 1 ? '' : 'rounded-card-sm border border-stroke bg-bg-2 p-4'}
                 >
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="font-medium text-text-0">
-                      Group {index + 1}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="time"
-                        value={group.teeTime}
-                        onChange={(e) => updateGroupTeeTime(group.id, e.target.value)}
-                        placeholder="Tee time"
-                        className="rounded-button border border-stroke bg-bg-1 px-3 py-1.5 text-sm text-text-0 focus:border-accent focus:outline-none"
-                      />
-                      {groups.length > 1 && (
+                  {/* Group header (only show for multiple groups) */}
+                  {groups.length > 1 && (
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="font-medium text-text-0">
+                        Group {index + 1}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="time"
+                          value={group.teeTime}
+                          onChange={(e) => updateGroupTeeTime(group.id, e.target.value)}
+                          className="rounded-button border border-stroke bg-bg-1 px-3 py-1.5 text-sm text-text-0 focus:border-accent focus:outline-none"
+                        />
                         <button
                           type="button"
                           onClick={() => removeGroup(group.id)}
@@ -372,9 +315,31 @@ export default function NewRoundPage() {
                         >
                           <TrashIcon />
                         </button>
-                      )}
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Single group: simpler tee time input */}
+                  {groups.length === 1 && (
+                    <div className="mb-4">
+                      <label className="mb-2 block text-sm font-medium text-text-1">
+                        Tee Time
+                      </label>
+                      <input
+                        type="time"
+                        value={group.teeTime}
+                        onChange={(e) => updateGroupTeeTime(group.id, e.target.value)}
+                        className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none"
+                      />
+                    </div>
+                  )}
+
+                  {/* Players section */}
+                  {groups.length === 1 && (
+                    <label className="mb-2 block text-sm font-medium text-text-1">
+                      Players
+                    </label>
+                  )}
 
                   {/* Players in group */}
                   <div className="mb-3 flex flex-wrap gap-2">
@@ -414,7 +379,7 @@ export default function NewRoundPage() {
                           addPlayerToGroup(group.id, e.target.value)
                         }
                       }}
-                      className="w-full rounded-button border border-stroke bg-bg-1 px-3 py-2 text-sm text-text-0 focus:border-accent focus:outline-none"
+                      className="w-full rounded-button border border-stroke bg-bg-2 px-3 py-2 text-sm text-text-0 focus:border-accent focus:outline-none"
                     >
                       <option value="">Add player...</option>
                       {unassignedPlayers.map((player) => (
@@ -477,7 +442,7 @@ export default function NewRoundPage() {
           <Button
             type="submit"
             loading={submitting}
-            disabled={!name.trim() || players.length === 0}
+            disabled={submitting || !name.trim() || players.length === 0}
             className="flex-1"
           >
             Create Round

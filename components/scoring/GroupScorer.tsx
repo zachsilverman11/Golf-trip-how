@@ -173,7 +173,9 @@ export function GroupScorer({
           {currentHoleInfo.yards && (
             <span className="text-text-2">{currentHoleInfo.yards} yd</span>
           )}
-          <span className="text-text-2">SI: {currentHoleInfo.strokeIndex}</span>
+          <span className="text-text-2" title="Stroke Index (handicap allocation)">
+            SI {currentHoleInfo.strokeIndex}
+          </span>
         </div>
       </div>
 

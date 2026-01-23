@@ -32,17 +32,17 @@ export function MatchStrip({
   onPressAdded,
   className,
 }: MatchStripProps) {
-  // Calculate what's at stake for this hole
-  const holeStake = useMemo(() => {
+  // Calculate what's at stake for this hole (per man)
+  const holeStakePerMan = useMemo(() => {
     if (matchState.isMatchClosed) return 0
 
-    // Main match stake
-    let total = matchState.stakePerHole
+    // Main match stake per man
+    let total = matchState.stakePerMan
 
-    // Add active press stakes
+    // Add active press stakes (each press also has stake_per_man)
     for (const press of matchState.presses) {
       if (press.startingHole <= currentHole && press.status === 'in_progress') {
-        total += press.stakePerHole
+        total += press.stakePerMan
       }
     }
 
@@ -71,13 +71,13 @@ export function MatchStrip({
         className
       )}
     >
-      {/* Hero: This hole value */}
+      {/* Hero: This hole value per man */}
       <div className="text-center mb-3">
         <div className="text-text-2 text-xs uppercase tracking-wider mb-1">
           This Hole
         </div>
         <div className="font-display text-2xl font-bold text-accent">
-          {formatMoney(holeStake)} on the line
+          {formatMoney(holeStakePerMan)} per man
         </div>
       </div>
 
@@ -110,9 +110,9 @@ export function MatchStrip({
         )}
       </div>
 
-      {/* Total exposure */}
+      {/* Total exposure (per man) */}
       <div className="mt-3 text-center text-xs text-text-2">
-        Total exposure: <span className="font-medium text-text-1">{formatMoney(exposure.totalExposure)}</span>
+        Exposure: <span className="font-medium text-text-1">{formatMoney(exposure.totalExposure)}/man</span>
         {exposure.currentPosition !== 0 && (
           <span className={cn(
             'ml-2',
@@ -143,12 +143,12 @@ export function MatchStripCompact({
   currentHole,
   className,
 }: Omit<MatchStripProps, 'tripId' | 'roundId' | 'onPressAdded'>) {
-  const holeStake = useMemo(() => {
+  const holeStakePerMan = useMemo(() => {
     if (matchState.isMatchClosed) return 0
-    let total = matchState.stakePerHole
+    let total = matchState.stakePerMan
     for (const press of matchState.presses) {
       if (press.startingHole <= currentHole && press.status === 'in_progress') {
-        total += press.stakePerHole
+        total += press.stakePerMan
       }
     }
     return total
@@ -157,7 +157,7 @@ export function MatchStripCompact({
   return (
     <div className={cn('flex items-center justify-between text-sm', className)}>
       <span className="text-text-2">
-        Hole {currentHole}: <span className="font-bold text-accent">{formatMoney(holeStake)}</span>
+        Hole {currentHole}: <span className="font-bold text-accent">{formatMoney(holeStakePerMan)}/man</span>
       </span>
       <MatchStatus lead={matchState.currentLead} />
     </div>

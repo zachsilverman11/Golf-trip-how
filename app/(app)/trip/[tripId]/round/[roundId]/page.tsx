@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getRoundAction, updateRoundAction } from '@/lib/supabase/round-actions'
+import { getMatchForRoundAction } from '@/lib/supabase/match-actions'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -52,7 +53,12 @@ const formatLabels: Record<string, string> = {
 }
 
 export default async function RoundPage({ params }: RoundPageProps) {
-  const { round, error } = await getRoundAction(params.roundId)
+  const [roundResult, matchResult] = await Promise.all([
+    getRoundAction(params.roundId),
+    getMatchForRoundAction(params.roundId),
+  ])
+
+  const { round, error } = roundResult
 
   if (error || !round) {
     notFound()
@@ -60,6 +66,19 @@ export default async function RoundPage({ params }: RoundPageProps) {
 
   const tee = round.tees
   const course = (tee as any)?.courses
+  const hasTeeData = !!tee && !!(tee as any).holes?.length
+  const match = matchResult.match
+
+  // Build player name lookup from groups
+  const playerNames: Record<string, string> = {}
+  round.groups?.forEach((group) => {
+    group.group_players?.forEach((gp) => {
+      const player = (gp as any).players
+      if (player?.id && player?.name) {
+        playerNames[player.id] = player.name
+      }
+    })
+  })
 
   return (
     <LayoutContainer className="py-6">
@@ -165,6 +184,41 @@ export default async function RoundPage({ params }: RoundPageProps) {
         )}
       </div>
 
+      {/* Money Game */}
+      {match && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-display text-lg font-bold text-text-0">
+              Money Game
+            </h2>
+            <Link href={`/trip/${params.tripId}/round/${params.roundId}/match`}>
+              <Button variant="secondary" size="default">
+                {round.status === 'upcoming' ? 'Edit' : 'View Details'}
+              </Button>
+            </Link>
+          </div>
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <Badge variant="gold">{match.match_type.toUpperCase()}</Badge>
+              <span className="text-sm font-medium text-accent">
+                ${match.stake_per_man}/man
+              </span>
+            </div>
+            <div className="text-sm text-text-1">
+              <span className="text-text-0 font-medium">
+                {playerNames[match.team_a_player1_id] || 'Player'}
+                {match.team_a_player2_id && ` & ${playerNames[match.team_a_player2_id] || 'Player'}`}
+              </span>
+              <span className="text-text-2 mx-2">vs</span>
+              <span className="text-text-0 font-medium">
+                {playerNames[match.team_b_player1_id] || 'Player'}
+                {match.team_b_player2_id && ` & ${playerNames[match.team_b_player2_id] || 'Player'}`}
+              </span>
+            </div>
+          </Card>
+        </div>
+      )}
+
       <Divider />
 
       {/* Actions */}
@@ -173,6 +227,7 @@ export default async function RoundPage({ params }: RoundPageProps) {
           <StartRoundButton
             roundId={params.roundId}
             tripId={params.tripId}
+            hasTeeData={hasTeeData}
           />
         )}
 

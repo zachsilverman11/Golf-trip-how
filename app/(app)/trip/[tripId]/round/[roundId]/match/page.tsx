@@ -37,7 +37,7 @@ export default function MatchPage() {
       }
 
       setMatchState(result.state)
-      setNewStake(result.state.stakePerHole)
+      setNewStake(result.state.stakePerMan)
       setLoading(false)
     }
 
@@ -62,7 +62,7 @@ export default function MatchPage() {
 
     const result = await updateMatchStakesAction({
       matchId: matchState.matchId,
-      stakePerHole: newStake,
+      stakePerMan: newStake,
     })
 
     if (result.success) {
@@ -185,7 +185,7 @@ export default function MatchPage() {
               onChange={(e) => setNewStake(Math.max(1, parseInt(e.target.value) || 1))}
               className="w-20 px-3 py-2 rounded-lg bg-bg-2 border border-stroke text-text-0 text-center"
             />
-            <span className="text-text-2">per hole</span>
+            <span className="text-text-2">per man</span>
             <div className="ml-auto flex gap-2">
               <Button variant="secondary" size="default" onClick={() => setEditingStake(false)}>
                 Cancel
@@ -200,7 +200,7 @@ export default function MatchPage() {
             <div className="flex justify-between text-sm">
               <span className="text-text-2">Main match</span>
               <span className="text-text-0 font-medium">
-                {formatMoney(matchState.stakePerHole)}/hole
+                {formatMoney(matchState.stakePerMan)}/man
               </span>
             </div>
             <div className="flex justify-between text-sm">
@@ -251,7 +251,7 @@ export default function MatchPage() {
                     Press {press.pressNumber}
                   </div>
                   <div className="text-xs text-text-2">
-                    from hole {press.startingHole} • {formatMoney(press.stakePerHole)}/hole
+                    from hole {press.startingHole} • {formatMoney(press.stakePerMan)}/man
                   </div>
                 </div>
                 <div className="text-right">

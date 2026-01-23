@@ -50,7 +50,7 @@ export async function createMatchAction(input: CreateMatchInput): Promise<MatchA
       .insert({
         round_id: input.roundId,
         match_type: input.matchType,
-        stake_per_hole: input.stakePerHole,
+        stake_per_man: input.stakePerMan,
         team_a_player1_id: input.teamAPlayer1Id,
         team_a_player2_id: input.teamAPlayer2Id || null,
         team_b_player1_id: input.teamBPlayer1Id,
@@ -145,7 +145,7 @@ export async function addPressAction(input: AddPressInput): Promise<PressActionR
     // Get the current match to copy stake
     const { data: match, error: matchError } = await supabase
       .from('matches')
-      .select('stake_per_hole, round_id')
+      .select('stake_per_man, round_id')
       .eq('id', input.matchId)
       .single()
 
@@ -158,7 +158,7 @@ export async function addPressAction(input: AddPressInput): Promise<PressActionR
       .insert({
         match_id: input.matchId,
         starting_hole: input.startingHole,
-        stake_per_hole: match.stake_per_hole, // Copy current stake
+        stake_per_man: match.stake_per_man, // Copy current stake
       })
       .select('*')
       .single()
@@ -195,7 +195,7 @@ export async function updateMatchStakesAction(
   try {
     const { data: match, error } = await supabase
       .from('matches')
-      .update({ stake_per_hole: input.stakePerHole })
+      .update({ stake_per_man: input.stakePerMan })
       .eq('id', input.matchId)
       .select('*')
       .single()
@@ -534,7 +534,7 @@ export interface TripMatchSummary {
   roundName: string
   roundDate: string
   matchType: string
-  stakePerHole: number
+  stakePerMan: number
   status: string
   winner: string | null
   finalResult: string | null
@@ -620,7 +620,7 @@ export async function getMatchesForTripAction(tripId: string): Promise<{
         roundName: round.name,
         roundDate: round.date,
         matchType: match.match_type,
-        stakePerHole: match.stake_per_hole,
+        stakePerMan: match.stake_per_man,
         status: match.status,
         winner: match.winner,
         finalResult: match.final_result,
@@ -686,7 +686,7 @@ export async function getSpectatorMatchAction(
       id: matchData.match_id,
       round_id: matchData.round_id,
       match_type: matchData.match_type,
-      stake_per_hole: matchData.stake_per_hole,
+      stake_per_man: matchData.stake_per_man,
       team_a_player1_id: matchData.team_a_player1_id,
       team_a_player2_id: matchData.team_a_player2_id,
       team_b_player1_id: matchData.team_b_player1_id,
@@ -749,4 +749,204 @@ function generateDefaultHoles(): DbHole[] {
     yards: null,
     created_at: '',
   }))
+}
+
+// ============================================================================
+// TRIP MONEY TOTALS (For settle tab)
+// ============================================================================
+
+export interface PlayerMoneyTotal {
+  playerId: string
+  playerName: string
+  totalWinnings: number // Positive = won, negative = lost (per man)
+  matchResults: {
+    roundName: string
+    amount: number
+    description: string // e.g., "Won 2&1" or "Press 1: Lost 3 UP"
+  }[]
+}
+
+export interface TripMoneyResult {
+  success: boolean
+  playerTotals: PlayerMoneyTotal[]
+  error?: string
+}
+
+/**
+ * Calculate trip-wide money totals for all players.
+ * All values are PER MAN - in a 2v2, each player on the winning side gets the amount,
+ * and each player on the losing side loses the amount.
+ */
+export async function getTripMoneyTotalsAction(tripId: string): Promise<TripMoneyResult> {
+  const supabase = createClient()
+  const user = await getCurrentUser()
+
+  if (!user) {
+    return { success: false, playerTotals: [], error: 'Not authenticated' }
+  }
+
+  try {
+    // Get all completed matches for the trip with presses
+    const { data: rounds, error: roundsError } = await supabase
+      .from('rounds')
+      .select(`
+        id,
+        name,
+        matches (
+          *,
+          presses (*)
+        )
+      `)
+      .eq('trip_id', tripId)
+      .order('date')
+
+    if (roundsError) {
+      return { success: false, playerTotals: [], error: roundsError.message }
+    }
+
+    // Collect all player IDs we need names for
+    const playerIds = new Set<string>()
+    const playerTotals: Record<string, { winnings: number; results: PlayerMoneyTotal['matchResults'] }> = {}
+
+    for (const round of rounds || []) {
+      const match = (round as any).matches?.[0]
+      if (!match || match.status !== 'completed') continue
+
+      // Collect player IDs
+      const teamAIds = [match.team_a_player1_id, match.team_a_player2_id].filter(Boolean)
+      const teamBIds = [match.team_b_player1_id, match.team_b_player2_id].filter(Boolean)
+      teamAIds.forEach(id => playerIds.add(id))
+      teamBIds.forEach(id => playerIds.add(id))
+
+      // Initialize player totals if needed
+      for (const id of [...teamAIds, ...teamBIds]) {
+        if (!playerTotals[id]) {
+          playerTotals[id] = { winnings: 0, results: [] }
+        }
+      }
+
+      // Calculate main match result
+      // lead > 0 means Team A won by that many holes
+      // lead < 0 means Team B won by that many holes
+      const mainMatchAmount = Math.abs(match.current_lead) * match.stake_per_man
+
+      if (match.winner === 'team_a') {
+        // Team A won: each Team A player gets +amount, each Team B player gets -amount
+        for (const id of teamAIds) {
+          playerTotals[id].winnings += mainMatchAmount
+          playerTotals[id].results.push({
+            roundName: round.name,
+            amount: mainMatchAmount,
+            description: `Main: Won ${match.final_result}`,
+          })
+        }
+        for (const id of teamBIds) {
+          playerTotals[id].winnings -= mainMatchAmount
+          playerTotals[id].results.push({
+            roundName: round.name,
+            amount: -mainMatchAmount,
+            description: `Main: Lost ${match.final_result}`,
+          })
+        }
+      } else if (match.winner === 'team_b') {
+        // Team B won
+        for (const id of teamAIds) {
+          playerTotals[id].winnings -= mainMatchAmount
+          playerTotals[id].results.push({
+            roundName: round.name,
+            amount: -mainMatchAmount,
+            description: `Main: Lost ${match.final_result}`,
+          })
+        }
+        for (const id of teamBIds) {
+          playerTotals[id].winnings += mainMatchAmount
+          playerTotals[id].results.push({
+            roundName: round.name,
+            amount: mainMatchAmount,
+            description: `Main: Won ${match.final_result}`,
+          })
+        }
+      }
+      // If halved, no money changes hands
+
+      // Process completed presses
+      const presses = match.presses || []
+      for (const press of presses) {
+        if (press.status !== 'completed') continue
+
+        const pressAmount = Math.abs(press.current_lead) * press.stake_per_man
+
+        if (press.winner === 'team_a') {
+          for (const id of teamAIds) {
+            playerTotals[id].winnings += pressAmount
+            playerTotals[id].results.push({
+              roundName: round.name,
+              amount: pressAmount,
+              description: `Press ${press.press_number}: Won ${press.final_result}`,
+            })
+          }
+          for (const id of teamBIds) {
+            playerTotals[id].winnings -= pressAmount
+            playerTotals[id].results.push({
+              roundName: round.name,
+              amount: -pressAmount,
+              description: `Press ${press.press_number}: Lost ${press.final_result}`,
+            })
+          }
+        } else if (press.winner === 'team_b') {
+          for (const id of teamAIds) {
+            playerTotals[id].winnings -= pressAmount
+            playerTotals[id].results.push({
+              roundName: round.name,
+              amount: -pressAmount,
+              description: `Press ${press.press_number}: Lost ${press.final_result}`,
+            })
+          }
+          for (const id of teamBIds) {
+            playerTotals[id].winnings += pressAmount
+            playerTotals[id].results.push({
+              roundName: round.name,
+              amount: pressAmount,
+              description: `Press ${press.press_number}: Won ${press.final_result}`,
+            })
+          }
+        }
+      }
+    }
+
+    // Fetch player names
+    const playerIdArray = Array.from(playerIds)
+    if (playerIdArray.length === 0) {
+      return { success: true, playerTotals: [] }
+    }
+
+    const { data: players } = await supabase
+      .from('players')
+      .select('id, name')
+      .in('id', playerIdArray)
+
+    const playerNames: Record<string, string> = {}
+    for (const p of players || []) {
+      playerNames[p.id] = p.name
+    }
+
+    // Build final result sorted by total winnings (highest first)
+    const result: PlayerMoneyTotal[] = playerIdArray
+      .map(id => ({
+        playerId: id,
+        playerName: playerNames[id] || 'Unknown',
+        totalWinnings: playerTotals[id]?.winnings || 0,
+        matchResults: playerTotals[id]?.results || [],
+      }))
+      .sort((a, b) => b.totalWinnings - a.totalWinnings)
+
+    return { success: true, playerTotals: result }
+  } catch (err) {
+    console.error('Get trip money totals error:', err)
+    return {
+      success: false,
+      playerTotals: [],
+      error: err instanceof Error ? err.message : 'Failed to calculate money totals',
+    }
+  }
 }
