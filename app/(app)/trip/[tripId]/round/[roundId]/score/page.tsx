@@ -40,6 +40,7 @@ export default function ScorePage() {
   const [scores, setScores] = useState<{ [playerId: string]: { [hole: number]: number | null } }>({})
   const [matchState, setMatchState] = useState<MatchState | null>(null)
   const [formatState, setFormatState] = useState<FormatState | null>(null)
+  const [formatError, setFormatError] = useState<string | null>(null)
   const [currentHole, setCurrentHole] = useState(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -79,12 +80,16 @@ export default function ScorePage() {
         setMatchState(matchResult.state)
       }
 
-      // Load format state for team format rounds
+      // Load format state for Points Hi/Lo (requires teams)
+      // Stableford is individual-first for v1, no FormatStrip needed
       const format = roundResult.round.format
-      if (format === 'points_hilo' || format === 'stableford') {
+      if (format === 'points_hilo') {
         const formatResult = await getFormatStateAction(roundId)
         if (formatResult.formatState) {
           setFormatState(formatResult.formatState)
+        } else if (formatResult.error) {
+          // Teams not configured - will show setup prompt
+          setFormatError(formatResult.error)
         }
       }
 
@@ -108,15 +113,17 @@ export default function ScorePage() {
     }
   }, [roundId, matchState])
 
-  // Refresh format state
+  // Refresh format state (only for Points Hi/Lo)
   const refreshFormatState = useCallback(async () => {
     if (!round) return
-    const format = round.format
-    if (format !== 'points_hilo' && format !== 'stableford') return
+    if (round.format !== 'points_hilo') return
 
     const result = await getFormatStateAction(roundId)
     if (result.formatState) {
       setFormatState(result.formatState)
+      setFormatError(null)
+    } else if (result.error) {
+      setFormatError(result.error)
     }
   }, [roundId, round])
 
@@ -244,7 +251,7 @@ export default function ScorePage() {
         </div>
       </div>
 
-      {/* Format Strip (for team formats: Points Hi/Lo, Stableford) */}
+      {/* Format Strip (for Points Hi/Lo with teams configured) */}
       {formatState && (
         <FormatStrip
           formatState={formatState}
@@ -253,6 +260,25 @@ export default function ScorePage() {
           roundId={roundId}
           className="mb-4"
         />
+      )}
+
+      {/* Teams Not Set (for Points Hi/Lo without team assignments) */}
+      {formatError && round?.format === 'points_hilo' && (
+        <div className="mb-4 rounded-card border border-gold/50 bg-gold/5 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-text-0">Teams not set yet</p>
+              <p className="text-sm text-text-2">
+                Points Hi/Lo requires team assignments to track scoring
+              </p>
+            </div>
+            <Link href={`/trip/${tripId}/round/${roundId}`}>
+              <Button variant="secondary" size="default">
+                Assign Teams
+              </Button>
+            </Link>
+          </div>
+        </div>
       )}
 
       {/* Match Strip (for Match Play with money game) */}

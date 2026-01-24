@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Divider } from '@/components/ui/Divider'
 import { StartRoundButton } from '@/components/trip/StartRoundButton'
+import { RoundTeamAssignment } from '@/components/round/RoundTeamAssignment'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,13 +80,26 @@ export default async function RoundPage({ params }: RoundPageProps) {
   const hasTeeData = !!tee && !!(tee as any).holes?.length
   const match = matchResult.match
 
-  // Build player name lookup from groups
+  // Build player name lookup and team data from groups
   const playerNames: Record<string, string> = {}
+  const playersForTeams: Array<{
+    id: string
+    name: string
+    handicap: number | null
+    currentTeam: 1 | 2 | null
+  }> = []
+
   round.groups?.forEach((group) => {
     group.group_players?.forEach((gp) => {
       const player = (gp as any).players
       if (player?.id && player?.name) {
         playerNames[player.id] = player.name
+        playersForTeams.push({
+          id: player.id,
+          name: player.name,
+          handicap: gp.playing_handicap,
+          currentTeam: gp.team_number as 1 | 2 | null,
+        })
       }
     })
   })
@@ -200,6 +214,19 @@ export default async function RoundPage({ params }: RoundPageProps) {
           </div>
         )}
       </div>
+
+      {/* Team Assignment (for Points Hi/Lo format) */}
+      {round.format === 'points_hilo' && (
+        <div className="mb-6">
+          <RoundTeamAssignment
+            roundId={params.roundId}
+            tripId={params.tripId}
+            players={playersForTeams}
+            format={round.format}
+            status={round.status}
+          />
+        </div>
+      )}
 
       {/* Money Game */}
       {match && (

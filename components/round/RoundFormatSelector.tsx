@@ -107,7 +107,9 @@ export function RoundFormatSelector({
 
 /**
  * Check if format requires team assignments
+ * Only Points Hi/Lo requires teams for v1
+ * Stableford works individually (team mode is optional/future)
  */
 export function formatRequiresTeams(format: RoundFormat): boolean {
-  return format === 'points_hilo' || format === 'stableford'
+  return format === 'points_hilo'
 }

@@ -149,7 +149,7 @@ export default function NewRoundPage() {
 
     if (requiresTeams) {
       if (allPlayerIds.length !== 4) {
-        setError('Points Hi/Lo and Stableford formats require exactly 4 players')
+        setError('Points Hi/Lo format requires exactly 4 players')
         isSubmittingRef.current = false
         return
       }

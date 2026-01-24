@@ -142,7 +142,8 @@ export async function getTripFormatStandingsAction(tripId: string): Promise<{
   }
 
   try {
-    // Get all format rounds for this trip
+    // Get all Points Hi/Lo rounds for this trip
+    // Stableford is individual-first for v1, tracked via standard Net/Gross leaderboard
     const { data: rounds, error: roundsError } = await supabase
       .from('rounds')
       .select(`
@@ -166,7 +167,7 @@ export async function getTripFormatStandingsAction(tripId: string): Promise<{
         )
       `)
       .eq('trip_id', tripId)
-      .in('format', ['points_hilo', 'stableford'])
+      .eq('format', 'points_hilo')
       .order('date', { ascending: true })
 
     if (roundsError) {

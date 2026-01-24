@@ -459,6 +459,61 @@ export async function deleteGroupAction(groupId: string): Promise<GroupActionRes
 }
 
 // ============================================================================
+// Update Team Assignments (for Points Hi/Lo format)
+// ============================================================================
+
+export async function updateTeamAssignmentsAction(
+  roundId: string,
+  tripId: string,
+  teamAssignments: Record<string, 1 | 2>
+): Promise<RoundActionResult> {
+  const supabase = createClient()
+  const user = await getCurrentUser()
+
+  if (!user) {
+    return { success: false, error: 'Not authenticated' }
+  }
+
+  try {
+    // Get all group_players for this round
+    const { data: groups, error: groupsError } = await supabase
+      .from('groups')
+      .select('id, group_players (id, player_id)')
+      .eq('round_id', roundId)
+
+    if (groupsError) {
+      return { success: false, error: groupsError.message }
+    }
+
+    // Update team_number for each player
+    for (const group of groups || []) {
+      for (const gp of (group as any).group_players || []) {
+        const teamNumber = teamAssignments[gp.player_id]
+        if (teamNumber) {
+          const { error: updateError } = await supabase
+            .from('group_players')
+            .update({ team_number: teamNumber })
+            .eq('id', gp.id)
+
+          if (updateError) {
+            console.error('Update team assignment error:', updateError)
+          }
+        }
+      }
+    }
+
+    revalidatePath(`/trip/${tripId}/round/${roundId}`)
+    return { success: true, roundId }
+  } catch (err) {
+    console.error('Update team assignments error:', err)
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update team assignments',
+    }
+  }
+}
+
+// ============================================================================
 // Create Round with Groups and Players
 // ============================================================================
 
@@ -484,7 +539,8 @@ export async function createRoundWithGroupsAction(
   }
 
   // Validate team assignments for format rounds
-  const formatRequiresTeams = input.format === 'points_hilo' || input.format === 'stableford'
+  // Only Points Hi/Lo requires teams for v1 (Stableford works individually)
+  const formatRequiresTeams = input.format === 'points_hilo'
   if (formatRequiresTeams) {
     const allPlayerIds = input.groups.flatMap(g => g.player_ids)
 
@@ -492,7 +548,7 @@ export async function createRoundWithGroupsAction(
     if (allPlayerIds.length !== 4) {
       return {
         success: false,
-        error: 'Points Hi/Lo and Stableford formats require exactly 4 players'
+        error: 'Points Hi/Lo format requires exactly 4 players'
       }
     }
 
