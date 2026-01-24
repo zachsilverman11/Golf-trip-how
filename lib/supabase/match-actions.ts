@@ -870,10 +870,11 @@ export async function getTripMoneyTotalsAction(tripId: string): Promise<TripMone
       // If halved, no money changes hands
 
       // Process completed presses
-      const presses = match.presses || []
-      for (const press of presses) {
-        if (press.status !== 'completed') continue
+      const presses = (match.presses || []) as DbPress[]
+      presses.forEach((press: DbPress, pressIndex: number) => {
+        if (press.status !== 'completed') return
 
+        const pressNumber = pressIndex + 1
         const pressAmount = Math.abs(press.current_lead) * press.stake_per_man
 
         if (press.winner === 'team_a') {
@@ -882,7 +883,7 @@ export async function getTripMoneyTotalsAction(tripId: string): Promise<TripMone
             playerTotals[id].results.push({
               roundName: round.name,
               amount: pressAmount,
-              description: `Press ${press.press_number}: Won ${press.final_result}`,
+              description: `Press ${pressNumber}: Won ${press.final_result}`,
             })
           }
           for (const id of teamBIds) {
@@ -890,7 +891,7 @@ export async function getTripMoneyTotalsAction(tripId: string): Promise<TripMone
             playerTotals[id].results.push({
               roundName: round.name,
               amount: -pressAmount,
-              description: `Press ${press.press_number}: Lost ${press.final_result}`,
+              description: `Press ${pressNumber}: Lost ${press.final_result}`,
             })
           }
         } else if (press.winner === 'team_b') {
@@ -899,7 +900,7 @@ export async function getTripMoneyTotalsAction(tripId: string): Promise<TripMone
             playerTotals[id].results.push({
               roundName: round.name,
               amount: -pressAmount,
-              description: `Press ${press.press_number}: Lost ${press.final_result}`,
+              description: `Press ${pressNumber}: Lost ${press.final_result}`,
             })
           }
           for (const id of teamBIds) {
@@ -907,11 +908,11 @@ export async function getTripMoneyTotalsAction(tripId: string): Promise<TripMone
             playerTotals[id].results.push({
               roundName: round.name,
               amount: pressAmount,
-              description: `Press ${press.press_number}: Won ${press.final_result}`,
+              description: `Press ${pressNumber}: Won ${press.final_result}`,
             })
           }
         }
-      }
+      })
     }
 
     // Fetch player names
