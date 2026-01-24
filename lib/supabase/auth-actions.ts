@@ -16,11 +16,18 @@ export interface AuthResult {
  */
 export async function signInWithMagicLink(email: string, redirectTo?: string): Promise<AuthResult> {
   const supabase = createClient()
-  const headersList = headers()
-  const origin = headersList.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
+  // IMPORTANT: Use NEXT_PUBLIC_APP_URL for magic links
+  // This MUST be set to production URL in Vercel environment variables
+  // Do NOT use origin header - it will be localhost during local dev
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  if (!appUrl) {
+    console.error('NEXT_PUBLIC_APP_URL is not set - magic links will fail')
+    return { success: false, error: 'App URL not configured. Contact admin.' }
+  }
 
   // Build callback URL with optional redirect
-  let callbackUrl = `${origin}/auth/callback`
+  let callbackUrl = `${appUrl}/auth/callback`
   if (redirectTo) {
     callbackUrl += `?next=${encodeURIComponent(redirectTo)}`
   }
