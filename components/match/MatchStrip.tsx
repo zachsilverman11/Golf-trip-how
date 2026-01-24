@@ -1,12 +1,12 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { MatchStatus, PressStatus } from './MatchStatus'
 import { PressButton } from './PressButton'
 import { formatMoney, calculateExposure } from '@/lib/match-utils'
-import type { MatchState, HoleMatchInfo } from '@/lib/supabase/match-types'
+import type { MatchState } from '@/lib/supabase/match-types'
 
 interface MatchStripProps {
   matchState: MatchState
@@ -20,9 +20,13 @@ interface MatchStripProps {
 /**
  * Hero strip for scoring screen showing:
  * - "This hole: $X on the line" (hero element)
- * - Main match + press statuses
+ * - Main match + press statuses with origin holes
+ * - Expandable breakdown showing stake components
  * - Total exposure
  * - One-tap press button
+ *
+ * Tap the strip to expand/collapse the breakdown.
+ * Navigation to match details via the "View Details" link.
  */
 export function MatchStrip({
   matchState,
@@ -32,21 +36,36 @@ export function MatchStrip({
   onPressAdded,
   className,
 }: MatchStripProps) {
+  const [expanded, setExpanded] = useState(false)
+
   // Calculate what's at stake for this hole (per man)
-  const holeStakePerMan = useMemo(() => {
-    if (matchState.isMatchClosed) return 0
+  const { holeStakePerMan, breakdown } = useMemo(() => {
+    if (matchState.isMatchClosed) {
+      return { holeStakePerMan: 0, breakdown: [] }
+    }
+
+    const items: { label: string; amount: number }[] = []
 
     // Main match stake per man
+    items.push({
+      label: 'Main Match',
+      amount: matchState.stakePerMan,
+    })
+
     let total = matchState.stakePerMan
 
     // Add active press stakes (each press also has stake_per_man)
     for (const press of matchState.presses) {
       if (press.startingHole <= currentHole && press.status === 'in_progress') {
+        items.push({
+          label: `Press ${press.pressNumber} (from ${press.startingHole})`,
+          amount: press.stakePerMan,
+        })
         total += press.stakePerMan
       }
     }
 
-    return total
+    return { holeStakePerMan: total, breakdown: items }
   }, [matchState, currentHole])
 
   // Calculate total exposure
@@ -62,11 +81,19 @@ export function MatchStrip({
   // Can add press only if match is still in progress
   const canAddPress = matchState.status === 'in_progress' && !matchState.isMatchClosed
 
+  const handleToggle = (e: React.MouseEvent) => {
+    // Don't toggle if clicking the press button or link
+    if ((e.target as HTMLElement).closest('button, a')) {
+      return
+    }
+    setExpanded(!expanded)
+  }
+
   return (
-    <Link
-      href={`/trip/${tripId}/round/${roundId}/match`}
+    <div
+      onClick={handleToggle}
       className={cn(
-        'block bg-bg-1 border border-stroke rounded-card p-4',
+        'bg-bg-1 border border-stroke rounded-card p-4 cursor-pointer',
         'hover:border-accent/50 transition-colors',
         className
       )}
@@ -79,7 +106,31 @@ export function MatchStrip({
         <div className="font-display text-2xl font-bold text-accent">
           {formatMoney(holeStakePerMan)} per man
         </div>
+        {/* Expand hint */}
+        {breakdown.length > 1 && (
+          <div className="text-xs text-text-2 mt-1">
+            {expanded ? 'tap to collapse' : 'tap for breakdown'}
+          </div>
+        )}
       </div>
+
+      {/* Expandable breakdown */}
+      {expanded && breakdown.length > 0 && (
+        <div className="bg-bg-2 rounded-card-sm p-3 mb-3">
+          <div className="space-y-1.5">
+            {breakdown.map((item, idx) => (
+              <div key={idx} className="flex items-center justify-between text-sm">
+                <span className="text-text-2">{item.label}</span>
+                <span className="font-medium text-text-1">{formatMoney(item.amount)}</span>
+              </div>
+            ))}
+            <div className="border-t border-stroke/50 pt-1.5 mt-1.5 flex items-center justify-between text-sm">
+              <span className="font-medium text-text-0">Total per man</span>
+              <span className="font-bold text-accent">{formatMoney(holeStakePerMan)}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Divider */}
       <div className="border-t border-stroke/50 my-3" />
@@ -88,14 +139,15 @@ export function MatchStrip({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Main match status */}
-          <MatchStatus lead={matchState.currentLead} label="status" />
+          <MatchStatus lead={matchState.currentLead} label="Main" />
 
-          {/* Press statuses */}
+          {/* Press statuses with origin hole */}
           {activePresses.map((press) => (
             <PressStatus
               key={press.id}
               pressNumber={press.pressNumber}
               lead={press.currentLead}
+              startingHole={press.startingHole}
             />
           ))}
         </div>
@@ -111,16 +163,25 @@ export function MatchStrip({
       </div>
 
       {/* Total exposure (per man) */}
-      <div className="mt-3 text-center text-xs text-text-2">
-        Exposure: <span className="font-medium text-text-1">{formatMoney(exposure.totalExposure)}/man</span>
-        {exposure.currentPosition !== 0 && (
-          <span className={cn(
-            'ml-2',
-            exposure.currentPosition > 0 ? 'text-good' : 'text-bad'
-          )}>
-            ({exposure.currentPosition > 0 ? '+' : ''}{formatMoney(exposure.currentPosition)})
-          </span>
-        )}
+      <div className="mt-3 flex items-center justify-between text-xs">
+        <span className="text-text-2">
+          Exposure: <span className="font-medium text-text-1">{formatMoney(exposure.totalExposure)}/man</span>
+          {exposure.currentPosition !== 0 && (
+            <span className={cn(
+              'ml-2',
+              exposure.currentPosition > 0 ? 'text-good' : 'text-bad'
+            )}>
+              ({exposure.currentPosition > 0 ? '+' : ''}{formatMoney(exposure.currentPosition)})
+            </span>
+          )}
+        </span>
+        <Link
+          href={`/trip/${tripId}/round/${roundId}/match`}
+          className="text-accent hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          View Details →
+        </Link>
       </div>
 
       {/* Match closed indicator */}
@@ -131,7 +192,7 @@ export function MatchStrip({
           </span>
         </div>
       )}
-    </Link>
+    </div>
   )
 }
 

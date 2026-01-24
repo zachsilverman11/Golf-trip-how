@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 
 interface MatchStatusProps {
   lead: number // positive = up, negative = down
-  label?: 'up_down' | 'status' // "2 UP" vs "Main: 2 UP"
+  label?: string // Optional label like "Main" or "status" (legacy)
   size?: 'default' | 'large'
   className?: string
 }
@@ -56,7 +56,7 @@ export function MatchStatus({
         className
       )}
     >
-      {label === 'status' && <span className="opacity-60 mr-1">Main:</span>}
+      {label && <span className="opacity-60 mr-1">{label}:</span>}
       {statusText}
     </span>
   )
@@ -65,16 +65,18 @@ export function MatchStatus({
 interface PressStatusProps {
   pressNumber: number
   lead: number
+  startingHole?: number // Optional: show "P1 from 8" instead of just "P1"
   size?: 'default' | 'large'
   className?: string
 }
 
 /**
- * Display press status badge: "P1: 1 DN"
+ * Display press status badge: "P1 from 8: 1 DN"
  */
 export function PressStatus({
   pressNumber,
   lead,
+  startingHole,
   size = 'default',
   className,
 }: PressStatusProps) {
@@ -105,6 +107,9 @@ export function PressStatus({
     large: 'px-3 py-1 text-sm font-medium',
   }
 
+  // Build label: "P1" or "P1 from 8"
+  const label = startingHole ? `P${pressNumber} from ${startingHole}` : `P${pressNumber}`
+
   return (
     <span
       className={cn(
@@ -114,7 +119,7 @@ export function PressStatus({
         className
       )}
     >
-      <span className="opacity-70 mr-1">P{pressNumber}:</span>
+      <span className="opacity-70 mr-1">{label}:</span>
       {statusText}
     </span>
   )
