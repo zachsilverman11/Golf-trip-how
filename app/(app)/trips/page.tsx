@@ -42,6 +42,16 @@ export default async function TripsPage() {
         </div>
       )}
 
+      {/* Quick Actions */}
+      <div className="mb-6">
+        <Link href="/quick-round">
+          <Button variant="secondary" className="w-full">
+            <BoltIcon />
+            Quick Round
+          </Button>
+        </Link>
+      </div>
+
       {/* Trip list */}
       {trips.length === 0 ? (
         <div className="text-center py-12">
@@ -92,6 +102,14 @@ function PlusIcon() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+    </svg>
+  )
+}
+
+function BoltIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
     </svg>
   )
 }

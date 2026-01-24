@@ -23,7 +23,24 @@ export function SetupChecklist({
   const hasRounds = roundCount > 0
   const isSetupComplete = hasPlayers && hasRounds
 
-  // Don't show checklist when setup is complete
+  // Check for in-progress round
+  const inProgressRound = rounds.find((r) => r.status === 'in_progress')
+
+  // Show "Continue Scoring" CTA if there's an in-progress round
+  if (isSetupComplete && inProgressRound) {
+    return (
+      <Card className="mb-6 border-good/30 bg-good/5 p-4">
+        <Link href={`/trip/${tripId}/round/${inProgressRound.id}/score`}>
+          <Button size="large" className="w-full">
+            <LiveIcon />
+            Continue Scoring: {inProgressRound.name}
+          </Button>
+        </Link>
+      </Card>
+    )
+  }
+
+  // Don't show checklist when setup is complete (and no in-progress round)
   if (isSetupComplete) return null
 
   // Determine primary CTA
@@ -61,6 +78,14 @@ export function SetupChecklist({
         </Link>
       )}
     </Card>
+  )
+}
+
+function LiveIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="12" cy="12" r="4" className="animate-pulse" />
+    </svg>
   )
 }
 

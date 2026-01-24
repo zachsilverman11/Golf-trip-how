@@ -1,0 +1,131 @@
+'use client'
+
+import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/Badge'
+
+interface Player {
+  id: string
+  name: string
+  handicap: number | null
+}
+
+interface PlayerEntryProps {
+  players: Player[]
+  onAddPlayer: (name: string, handicap: number | null) => void
+  onRemovePlayer: (id: string) => void
+  className?: string
+}
+
+export function PlayerEntry({
+  players,
+  onAddPlayer,
+  onRemovePlayer,
+  className,
+}: PlayerEntryProps) {
+  const handleAddPlayer = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const form = e.currentTarget
+    const nameInput = form.elements.namedItem('playerName') as HTMLInputElement
+    const handicapInput = form.elements.namedItem('playerHandicap') as HTMLInputElement
+
+    const name = nameInput.value.trim()
+    if (!name) return
+
+    const handicap = handicapInput.value ? parseFloat(handicapInput.value) : null
+
+    onAddPlayer(name, handicap)
+
+    // Reset form
+    nameInput.value = ''
+    handicapInput.value = ''
+    nameInput.focus()
+  }
+
+  return (
+    <div className={className}>
+      <label className="mb-2 block text-sm font-medium text-text-1">
+        Players
+      </label>
+
+      {/* Current players */}
+      {players.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {players.map((player) => (
+            <Badge
+              key={player.id}
+              variant="default"
+              className="pr-1"
+            >
+              {player.name}
+              {player.handicap !== null && (
+                <span className="ml-1 opacity-70">({player.handicap})</span>
+              )}
+              <button
+                type="button"
+                onClick={() => onRemovePlayer(player.id)}
+                className="ml-1 p-0.5 hover:text-bad"
+              >
+                <XIcon />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {/* Add player form */}
+      <form onSubmit={handleAddPlayer} className="flex gap-2">
+        <input
+          name="playerName"
+          type="text"
+          placeholder="Player name"
+          className={cn(
+            'flex-1 min-w-0 rounded-button border border-stroke bg-bg-2 px-3 py-2 text-sm text-text-0',
+            'placeholder:text-text-2 focus:border-accent focus:outline-none'
+          )}
+        />
+        <input
+          name="playerHandicap"
+          type="number"
+          step="0.1"
+          placeholder="Hdcp"
+          className={cn(
+            'w-16 rounded-button border border-stroke bg-bg-2 px-3 py-2 text-sm text-text-0 text-center',
+            'placeholder:text-text-2 focus:border-accent focus:outline-none'
+          )}
+        />
+        <button
+          type="submit"
+          className={cn(
+            'flex h-10 w-10 items-center justify-center rounded-button',
+            'bg-accent text-bg-0 hover:brightness-110 transition-all',
+            'active:scale-[0.98]'
+          )}
+        >
+          <PlusIcon />
+        </button>
+      </form>
+
+      {players.length === 0 && (
+        <p className="mt-2 text-xs text-text-2">
+          Add at least one player to start
+        </p>
+      )}
+    </div>
+  )
+}
+
+function XIcon() {
+  return (
+    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+    </svg>
+  )
+}

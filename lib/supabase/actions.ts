@@ -300,8 +300,9 @@ export async function importCourseAction(
     .join(', ')
 
   // Use existing saveCourseAction
+  // Prefer course_name (specific course like "Pacific Dunes") over club_name for disambiguation
   return saveCourseAction({
-    courseName: course.club_name || course.course_name || 'Unknown Course',
+    courseName: course.course_name || course.club_name || 'Unknown Course',
     location,
     country: course.location?.country === 'Canada' ? 'CA' : 'US',
     externalProvider: 'golfcourseapi',

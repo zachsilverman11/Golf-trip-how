@@ -6,6 +6,8 @@ import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { Card } from '@/components/ui/Card'
 import { getTripMoneyTotalsAction, type PlayerMoneyTotal } from '@/lib/supabase/match-actions'
 import { getTripFormatStandingsAction } from '@/lib/supabase/format-actions'
+import { getWarTotalsAction, type WarTotals } from '@/lib/supabase/war-actions'
+import { WarTotalsCard } from '@/components/settle/WarTotalsCard'
 import { formatMoney } from '@/lib/match-utils'
 import { cn } from '@/lib/utils'
 import type { TripFormatStandings } from '@/lib/format-types'
@@ -16,15 +18,17 @@ export default function SettlePage() {
 
   const [playerTotals, setPlayerTotals] = useState<PlayerMoneyTotal[]>([])
   const [formatStandings, setFormatStandings] = useState<TripFormatStandings | null>(null)
+  const [warTotals, setWarTotals] = useState<WarTotals | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
-      const [moneyResult, formatResult] = await Promise.all([
+      const [moneyResult, formatResult, warResult] = await Promise.all([
         getTripMoneyTotalsAction(tripId),
         getTripFormatStandingsAction(tripId),
+        getWarTotalsAction(tripId),
       ])
 
       if (!moneyResult.success) {
@@ -35,6 +39,10 @@ export default function SettlePage() {
 
       if (formatResult.standings) {
         setFormatStandings(formatResult.standings)
+      }
+
+      if (warResult.totals) {
+        setWarTotals(warResult.totals)
       }
 
       setLoading(false)
@@ -68,6 +76,11 @@ export default function SettlePage() {
       <h1 className="mb-6 font-display text-2xl font-bold text-text-0">
         Trip Money
       </h1>
+
+      {/* War Totals (if war mode enabled and has data) */}
+      {warTotals && (warTotals.teamA.points > 0 || warTotals.teamB.points > 0) && (
+        <WarTotalsCard totals={warTotals} className="mb-4" />
+      )}
 
       {/* Format Standings (if any format rounds played) */}
       {hasFormatData && (

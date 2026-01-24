@@ -67,9 +67,24 @@ export interface DbTrip {
   end_date: string | null
   created_by: string | null
   spectator_token: string | null
+  war_enabled: boolean
   created_at: string
   updated_at: string
 }
+
+// ============================================================================
+// WAR TYPES
+// ============================================================================
+
+export interface DbTripTeamAssignment {
+  id: string
+  trip_id: string
+  player_id: string
+  team: 'A' | 'B'
+  created_at: string
+}
+
+export type DbTripTeamAssignmentInsert = Omit<DbTripTeamAssignment, 'id' | 'created_at'>
 
 export interface DbTripMember {
   id: string

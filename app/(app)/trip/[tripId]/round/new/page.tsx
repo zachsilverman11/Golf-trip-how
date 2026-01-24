@@ -56,11 +56,17 @@ export default function NewRoundPage() {
   const [matchConfig, setMatchConfig] = useState<Omit<CreateMatchInput, 'roundId'> | null>(null)
   const [showMatchSetup, setShowMatchSetup] = useState(false)
 
+  // Manual course mode (when user can't find their course)
+  const [manualCourseMode, setManualCourseMode] = useState(false)
+
   // Data
   const [players, setPlayers] = useState<DbPlayer[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Start scoring immediately option
+  const [startImmediately, setStartImmediately] = useState(false)
 
   // Ref to prevent double submission
   const isSubmittingRef = useRef(false)
@@ -200,7 +206,12 @@ export default function NewRoundPage() {
         }
       }
 
-      router.push(`/trip/${tripId}/round/${result.roundId}`)
+      // Redirect based on start immediately preference
+      if (startImmediately) {
+        router.push(`/trip/${tripId}/round/${result.roundId}/score`)
+      } else {
+        router.push(`/trip/${tripId}/round/${result.roundId}`)
+      }
     } else {
       setError(result.error || 'Failed to create round')
       setSubmitting(false)
@@ -307,13 +318,40 @@ export default function NewRoundPage() {
             Course
           </h2>
 
-          <CourseSelector
-            selectedTeeId={selectedTeeId}
-            onTeeSelected={(teeId, courseName, teeName) => {
-              setSelectedTeeId(teeId)
-              setSelectedCourseName(courseName)
-            }}
-          />
+          {!manualCourseMode ? (
+            <>
+              <CourseSelector
+                selectedTeeId={selectedTeeId}
+                onTeeSelected={(teeId, courseName, teeName) => {
+                  setSelectedTeeId(teeId)
+                  setSelectedCourseName(courseName)
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setManualCourseMode(true)}
+                className="mt-4 text-sm text-text-2 hover:text-accent transition-colors"
+              >
+                Can&apos;t find your course?
+              </button>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="rounded-card-sm bg-yellow-500/10 border border-yellow-500/30 p-3">
+                <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                  <span className="font-medium">Manual mode:</span> Without course data, all holes will default to Par 4.
+                  Handicap strokes won&apos;t be calculated.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setManualCourseMode(false)}
+                className="text-sm text-accent hover:underline"
+              >
+                ← Back to course search
+              </button>
+            </div>
+          )}
         </Card>
 
         {/* Groups */}
@@ -461,16 +499,41 @@ export default function NewRoundPage() {
         {/* Money Game (Match Setup) - Only for Match Play */}
         {format === 'match_play' && assignedPlayerIds.size >= 2 && (
           <div className="mb-4">
-            {showMatchSetup ? (
-              <MatchSetupForm
-                players={players.filter((p) => assignedPlayerIds.has(p.id))}
-                onMatchConfigured={(config) => {
-                  setMatchConfig(config)
-                  setMatchEnabled(true)
-                  setShowMatchSetup(false)
-                }}
-                onCancel={() => setShowMatchSetup(false)}
-              />
+            {/* Auto-expand match setup for match play to make it prominent */}
+            {!matchConfig ? (
+              <Card className="p-4 border-gold/30 bg-gold/5">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/20 text-gold">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-medium text-text-0">Set Up Money Game</p>
+                    <p className="text-xs text-text-2">Configure teams and stakes for match play</p>
+                  </div>
+                </div>
+                {showMatchSetup ? (
+                  <MatchSetupForm
+                    players={players.filter((p) => assignedPlayerIds.has(p.id))}
+                    onMatchConfigured={(config) => {
+                      setMatchConfig(config)
+                      setMatchEnabled(true)
+                      setShowMatchSetup(false)
+                    }}
+                    onCancel={() => setShowMatchSetup(false)}
+                  />
+                ) : (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setShowMatchSetup(true)}
+                    className="w-full"
+                  >
+                    Configure Money Game
+                  </Button>
+                )}
+              </Card>
             ) : (
               <MatchSetupToggle
                 enabled={matchEnabled}
@@ -488,6 +551,22 @@ export default function NewRoundPage() {
           </div>
         )}
 
+        {/* Start immediately option */}
+        <Card className="p-4 mb-4">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={startImmediately}
+              onChange={(e) => setStartImmediately(e.target.checked)}
+              className="h-5 w-5 rounded border-stroke bg-bg-2 text-accent focus:ring-accent focus:ring-offset-bg-0"
+            />
+            <div>
+              <p className="font-medium text-text-0">Start scoring immediately</p>
+              <p className="text-sm text-text-2">Jump straight to the scorecard after creating</p>
+            </div>
+          </label>
+        </Card>
+
         {error && (
           <div className="mb-4 rounded-card bg-bad/10 p-4 text-bad">
             {error}
@@ -504,7 +583,7 @@ export default function NewRoundPage() {
           <Button
             type="submit"
             loading={submitting}
-            disabled={submitting || !name.trim() || players.length === 0}
+            disabled={submitting || !name.trim() || players.length === 0 || (!selectedTeeId && !manualCourseMode)}
             className="flex-1"
           >
             Create Round

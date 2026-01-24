@@ -1,12 +1,15 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getTripAction } from '@/lib/supabase/trip-actions'
+import { getPlayersAction } from '@/lib/supabase/player-actions'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { SpectatorLinkCopyButton } from '@/components/trip/SpectatorLinkCopyButton'
 import { SetupChecklist } from '@/components/trip/SetupChecklist'
+import { WarToggle } from '@/components/trip/WarToggle'
+import { TripTeamAssignment } from '@/components/trip/TripTeamAssignment'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +46,12 @@ function formatTeeTime(teeTimeStr: string | null): string | null {
 }
 
 export default async function TripPage({ params }: TripPageProps) {
-  const { trip, userRole, error } = await getTripAction(params.tripId)
+  const [tripResult, playersResult] = await Promise.all([
+    getTripAction(params.tripId),
+    getPlayersAction(params.tripId),
+  ])
+
+  const { trip, userRole, error } = tripResult
 
   if (error || !trip) {
     notFound()
@@ -52,6 +60,7 @@ export default async function TripPage({ params }: TripPageProps) {
   const isAdmin = userRole === 'admin'
   const hasPlayers = trip.playerCount > 0
   const hasRounds = trip.roundCount > 0
+  const players = playersResult.players || []
 
   return (
     <LayoutContainer className="py-6">
@@ -162,8 +171,28 @@ export default async function TripPage({ params }: TripPageProps) {
               </div>
             </Card>
           )}
+
+          {/* War Mode (admin only) */}
+          {isAdmin && hasPlayers && (
+            <Card className="p-4">
+              <WarToggle
+                tripId={params.tripId}
+                enabled={trip.war_enabled ?? false}
+              />
+            </Card>
+          )}
         </div>
       </section>
+
+      {/* War Team Assignment (shown when war mode enabled) */}
+      {trip.war_enabled && hasPlayers && (
+        <section className="mb-6">
+          <TripTeamAssignment
+            tripId={params.tripId}
+            players={players.map((p) => ({ id: p.id, name: p.name }))}
+          />
+        </section>
+      )}
 
       {/* Section D: Rounds on this Trip */}
       <section>

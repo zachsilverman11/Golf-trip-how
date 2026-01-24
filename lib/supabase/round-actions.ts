@@ -14,6 +14,45 @@ import { getCurrentUser } from './auth-actions'
 import { revalidatePath } from 'next/cache'
 
 // ============================================================================
+// Check if Round has Scores
+// ============================================================================
+
+export async function checkRoundHasScoresAction(roundId: string): Promise<{
+  hasScores: boolean
+  scoreCount: number
+  error?: string
+}> {
+  const supabase = createClient()
+  const user = await getCurrentUser()
+
+  if (!user) {
+    return { hasScores: false, scoreCount: 0, error: 'Not authenticated' }
+  }
+
+  try {
+    const { count, error } = await supabase
+      .from('scores')
+      .select('*', { count: 'exact', head: true })
+      .eq('round_id', roundId)
+      .not('gross_strokes', 'is', null)
+
+    if (error) {
+      console.error('Check scores error:', error)
+      return { hasScores: false, scoreCount: 0, error: error.message }
+    }
+
+    return { hasScores: (count || 0) > 0, scoreCount: count || 0 }
+  } catch (err) {
+    console.error('Check scores error:', err)
+    return {
+      hasScores: false,
+      scoreCount: 0,
+      error: err instanceof Error ? err.message : 'Failed to check scores',
+    }
+  }
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 

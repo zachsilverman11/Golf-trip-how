@@ -137,8 +137,10 @@ export function CourseSelector({
         return
       }
 
+      // Use course_name (specific course like "Pacific Dunes") if available, otherwise club_name
+      const displayName = apiCourseDetails.course_name || apiCourseDetails.club_name || 'Unknown Course'
       setSelectedCourse({
-        name: apiCourseDetails.club_name || apiCourseDetails.course_name || 'Unknown Course',
+        name: displayName,
         location: formatLocation(apiCourseDetails.location),
         teeId: result.teeId!,
         teeName: tee.tee_name,
@@ -147,7 +149,7 @@ export function CourseSelector({
         yards: tee.total_yards,
       })
       setStep('selected')
-      onTeeSelected(result.teeId!, apiCourseDetails.club_name || apiCourseDetails.course_name || 'Unknown Course', tee.tee_name)
+      onTeeSelected(result.teeId!, displayName, tee.tee_name)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to import course')
     } finally {
@@ -208,8 +210,12 @@ export function CourseSelector({
 
         <Card className="p-4 mb-3">
           <p className="font-medium text-text-0">
-            {selectedApiCourse?.club_name || selectedApiCourse?.course_name}
+            {selectedApiCourse?.course_name || selectedApiCourse?.club_name}
           </p>
+          {selectedApiCourse?.course_name && selectedApiCourse?.club_name &&
+           selectedApiCourse.course_name !== selectedApiCourse.club_name && (
+            <p className="text-sm text-text-1">at {selectedApiCourse.club_name}</p>
+          )}
           <p className="text-sm text-text-2">
             {formatLocation(selectedApiCourse?.location)}
           </p>
@@ -288,8 +294,11 @@ export function CourseSelector({
               )}
             >
               <span className="font-medium text-text-0">
-                {course.club_name || course.course_name}
+                {course.course_name || course.club_name}
               </span>
+              {course.course_name && course.club_name && course.course_name !== course.club_name && (
+                <span className="text-sm text-text-1">at {course.club_name}</span>
+              )}
               <span className="text-sm text-text-2">{formatLocation(course.location)}</span>
             </button>
           ))}

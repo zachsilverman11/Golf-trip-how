@@ -42,7 +42,7 @@ const config: Config = {
         '18': '4.5rem',
       },
       minHeight: {
-        'button': '44px',
+        'button': '48px',  // 48px minimum for mobile touch targets
         'row': '48px',
         'action': '56px',
       },

@@ -11,4 +11,19 @@
   body {
     @apply antialiased;
   }
+
+  /* Prevent iOS zoom on form inputs by ensuring 16px minimum font size */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  @screen sm {
+    input,
+    select,
+    textarea {
+      font-size: inherit;
+    }
+  }
 }

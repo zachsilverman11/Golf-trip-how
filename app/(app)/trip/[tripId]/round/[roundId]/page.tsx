@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Divider } from '@/components/ui/Divider'
 import { StartRoundButton } from '@/components/trip/StartRoundButton'
 import { RoundTeamAssignment } from '@/components/round/RoundTeamAssignment'
+import { RoundManagement } from '@/components/round/RoundManagement'
 
 export const dynamic = 'force-dynamic'
 
@@ -135,6 +136,17 @@ export default async function RoundPage({ params }: RoundPageProps) {
               )}
             </p>
           </div>
+          <RoundManagement
+            roundId={params.roundId}
+            tripId={params.tripId}
+            round={{
+              name: round.name,
+              date: round.date,
+              tee_time: round.tee_time,
+              status: round.status,
+              format: round.format,
+            }}
+          />
         </div>
       </div>
 
@@ -229,7 +241,7 @@ export default async function RoundPage({ params }: RoundPageProps) {
       )}
 
       {/* Money Game */}
-      {match && (
+      {match ? (
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-display text-lg font-bold text-text-0">
@@ -259,6 +271,27 @@ export default async function RoundPage({ params }: RoundPageProps) {
                 {match.team_b_player2_id && ` & ${playerNames[match.team_b_player2_id] || 'Player'}`}
               </span>
             </div>
+          </Card>
+        </div>
+      ) : round.format === 'match_play' && round.status !== 'completed' && (
+        <div className="mb-6">
+          <Card className="p-4 border-gold/30 bg-gold/5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gold/20 text-gold">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-medium text-text-0">No Money Game Set Up</p>
+                <p className="text-sm text-text-2">Add a money game to track bets for this match play round</p>
+              </div>
+            </div>
+            <Link href={`/trip/${params.tripId}/round/${params.roundId}/match`}>
+              <Button variant="secondary" className="w-full">
+                Add Money Game
+              </Button>
+            </Link>
           </Card>
         </div>
       )}

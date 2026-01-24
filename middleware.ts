@@ -58,6 +58,11 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Skip auth callback route - let it handle its own redirects
+  if (request.nextUrl.pathname.startsWith('/auth/callback')) {
+    return response
+  }
+
   // Root route - redirect based on auth status
   if (request.nextUrl.pathname === '/') {
     if (user) {
@@ -71,7 +76,8 @@ export async function middleware(request: NextRequest) {
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/trips') ||
     request.nextUrl.pathname.startsWith('/trip/') ||
     request.nextUrl.pathname.startsWith('/courses') ||
-    request.nextUrl.pathname.startsWith('/course/')
+    request.nextUrl.pathname.startsWith('/course/') ||
+    request.nextUrl.pathname.startsWith('/quick-round')
 
   if (isProtectedRoute && !user) {
     const redirectUrl = new URL('/login', request.url)
