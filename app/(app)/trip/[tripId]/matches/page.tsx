@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { ErrorCard } from '@/components/ui/ErrorCard'
 import { MatchStatus } from '@/components/match'
 import { getMatchesForTripAction, TripMatchSummary } from '@/lib/supabase/match-actions'
 import { formatMoney, formatMatchStatus } from '@/lib/match-utils'
@@ -21,12 +22,18 @@ export default function MatchesPage() {
 
   useEffect(() => {
     const loadMatches = async () => {
-      const result = await getMatchesForTripAction(tripId)
+      try {
+        const result = await getMatchesForTripAction(tripId)
 
-      if (result.error) {
-        setError(result.error)
-      } else {
-        setMatches(result.matches)
+        if (result.error) {
+          console.error('Failed to load matches:', result.error)
+          setError(result.error)
+        } else {
+          setMatches(result.matches)
+        }
+      } catch (err) {
+        console.error('Failed to load matches:', err)
+        setError('An unexpected error occurred')
       }
       setLoading(false)
     }
@@ -41,6 +48,22 @@ export default function MatchesPage() {
           Matches
         </h1>
         <div className="text-center text-text-2">Loading matches...</div>
+      </LayoutContainer>
+    )
+  }
+
+  if (error) {
+    return (
+      <LayoutContainer className="py-6">
+        <h1 className="mb-6 font-display text-2xl font-bold text-text-0">
+          Matches
+        </h1>
+        <ErrorCard
+          title="Unable to Load Matches"
+          message="Money Games aren't available yet. Please try again later."
+          backHref={`/trip/${tripId}`}
+          backLabel="Back to Trip"
+        />
       </LayoutContainer>
     )
   }

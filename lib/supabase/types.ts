@@ -188,6 +188,7 @@ export interface DbRoundSummary {
   tee_time: string | null
   status: 'upcoming' | 'in_progress' | 'completed'
   format: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
+  scoring_basis?: 'gross' | 'net'
 }
 
 // Extended trip type with counts for Trip HQ

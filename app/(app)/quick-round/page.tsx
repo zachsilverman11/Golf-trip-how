@@ -10,48 +10,33 @@ import { PlayerEntry } from '@/components/quick-round/PlayerEntry'
 import { CourseSelector } from '@/components/round/CourseSelector'
 import { RoundFormatSelector, type RoundFormat } from '@/components/round/RoundFormatSelector'
 import { createQuickRoundAction } from '@/lib/supabase/quick-round-actions'
-
-interface Player {
-  id: string
-  name: string
-  handicap: number | null
-}
+import { useQuickRoundDraft, type QuickRoundPlayer } from '@/hooks/useQuickRoundDraft'
 
 export default function QuickRoundPage() {
   const router = useRouter()
+  const { draft, isHydrated, updateDraft, clearDraft } = useQuickRoundDraft()
 
-  // Players state
-  const [players, setPlayers] = useState<Player[]>([])
-
-  // Course state
-  const [selectedTeeId, setSelectedTeeId] = useState<string | null>(null)
-  const [selectedCourseName, setSelectedCourseName] = useState<string>('')
-
-  // Round settings
-  const [format, setFormat] = useState<RoundFormat>('stroke_play')
-  const [scoringBasis, setScoringBasis] = useState<'gross' | 'net'>('net')
-  const [teeTime, setTeeTime] = useState('')
-
-  // UI state
+  // UI state (not persisted)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [startImmediately, setStartImmediately] = useState(true)
 
   const addPlayer = (name: string, handicap: number | null) => {
-    setPlayers([
-      ...players,
-      { id: crypto.randomUUID(), name, handicap },
-    ])
+    const newPlayer: QuickRoundPlayer = {
+      id: crypto.randomUUID(),
+      name,
+      handicap,
+    }
+    updateDraft({ players: [...draft.players, newPlayer] })
   }
 
   const removePlayer = (id: string) => {
-    setPlayers(players.filter((p) => p.id !== id))
+    updateDraft({ players: draft.players.filter((p) => p.id !== id) })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (players.length === 0) {
+    if (draft.players.length === 0) {
       setError('Add at least one player')
       return
     }
@@ -60,16 +45,18 @@ export default function QuickRoundPage() {
     setError(null)
 
     const result = await createQuickRoundAction({
-      players: players.map((p) => ({ name: p.name, handicap: p.handicap })),
-      teeId: selectedTeeId,
-      courseName: selectedCourseName || null,
-      format,
-      scoringBasis,
-      teeTime: teeTime || null,
+      players: draft.players.map((p) => ({ name: p.name, handicap: p.handicap })),
+      teeId: draft.teeId,
+      courseName: draft.courseDisplayName || null,
+      format: draft.format,
+      scoringBasis: draft.scoringBasis,
+      teeTime: draft.teeTime || null,
     })
 
     if (result.success && result.tripId && result.roundId) {
-      if (startImmediately) {
+      // Clear draft only after successful creation
+      clearDraft()
+      if (draft.startImmediately) {
         router.push(`/trip/${result.tripId}/round/${result.roundId}/score`)
       } else {
         router.push(`/trip/${result.tripId}/round/${result.roundId}`)
@@ -80,7 +67,36 @@ export default function QuickRoundPage() {
     }
   }
 
-  const isValid = players.length > 0
+  const isValid = draft.players.length > 0
+
+  // Show skeleton while hydrating from localStorage
+  if (!isHydrated) {
+    return (
+      <LayoutContainer className="py-6">
+        <div className="mb-6">
+          <Link
+            href="/trips"
+            className="mb-4 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
+          >
+            <BackIcon />
+            Back to trips
+          </Link>
+          <h1 className="font-display text-2xl font-bold text-text-0">
+            Quick Round
+          </h1>
+          <p className="text-sm text-text-2">
+            Start a round in seconds
+          </p>
+        </div>
+        <Card className="p-4 mb-4">
+          <div className="h-32 animate-pulse bg-bg-2 rounded-card-sm" />
+        </Card>
+        <Card className="p-4 mb-4">
+          <div className="h-24 animate-pulse bg-bg-2 rounded-card-sm" />
+        </Card>
+      </LayoutContainer>
+    )
+  }
 
   return (
     <LayoutContainer className="py-6">
@@ -105,7 +121,7 @@ export default function QuickRoundPage() {
         {/* Players */}
         <Card className="p-4 mb-4">
           <PlayerEntry
-            players={players}
+            players={draft.players}
             onAddPlayer={addPlayer}
             onRemovePlayer={removePlayer}
           />
@@ -117,10 +133,19 @@ export default function QuickRoundPage() {
             Course <span className="text-text-2 font-normal text-sm">(optional)</span>
           </h2>
           <CourseSelector
-            selectedTeeId={selectedTeeId}
-            onTeeSelected={(teeId, courseName) => {
-              setSelectedTeeId(teeId)
-              setSelectedCourseName(courseName)
+            selectedTeeId={draft.teeId}
+            initialCourseInfo={
+              draft.courseDisplayName && draft.teeName
+                ? { name: draft.courseDisplayName, teeName: draft.teeName }
+                : null
+            }
+            onTeeSelected={(teeId, courseName, teeName) => {
+              // Atomic update - all course fields in one call
+              updateDraft({
+                teeId,
+                courseDisplayName: courseName,
+                teeName,
+              })
             }}
           />
         </Card>
@@ -128,8 +153,8 @@ export default function QuickRoundPage() {
         {/* Format & Settings */}
         <Card className="p-4 mb-4">
           <RoundFormatSelector
-            value={format}
-            onChange={setFormat}
+            value={draft.format}
+            onChange={(format) => updateDraft({ format })}
           />
 
           <div className="mt-4">
@@ -137,8 +162,8 @@ export default function QuickRoundPage() {
               Scoring Basis
             </label>
             <select
-              value={scoringBasis}
-              onChange={(e) => setScoringBasis(e.target.value as typeof scoringBasis)}
+              value={draft.scoringBasis}
+              onChange={(e) => updateDraft({ scoringBasis: e.target.value as 'gross' | 'net' })}
               className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             >
               <option value="net">Net (Handicap)</option>
@@ -152,8 +177,8 @@ export default function QuickRoundPage() {
             </label>
             <input
               type="time"
-              value={teeTime}
-              onChange={(e) => setTeeTime(e.target.value)}
+              value={draft.teeTime || ''}
+              onChange={(e) => updateDraft({ teeTime: e.target.value || null })}
               className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             />
           </div>
@@ -164,8 +189,8 @@ export default function QuickRoundPage() {
           <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
-              checked={startImmediately}
-              onChange={(e) => setStartImmediately(e.target.checked)}
+              checked={draft.startImmediately}
+              onChange={(e) => updateDraft({ startImmediately: e.target.checked })}
               className="h-5 w-5 rounded border-stroke bg-bg-2 text-accent focus:ring-accent focus:ring-offset-bg-0"
             />
             <div>
@@ -189,7 +214,7 @@ export default function QuickRoundPage() {
           disabled={submitting || !isValid}
           className="w-full"
         >
-          {startImmediately ? 'Start Round' : 'Create Round'}
+          {draft.startImmediately ? 'Start Round' : 'Create Round'}
         </Button>
       </form>
     </LayoutContainer>

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { Card } from '@/components/ui/Card'
+import { ErrorCard } from '@/components/ui/ErrorCard'
 import { getTripMoneyTotalsAction, type PlayerMoneyTotal } from '@/lib/supabase/match-actions'
 import { getTripFormatStandingsAction } from '@/lib/supabase/format-actions'
 import { getWarTotalsAction, type WarTotals } from '@/lib/supabase/war-actions'
@@ -25,24 +26,30 @@ export default function SettlePage() {
 
   useEffect(() => {
     const loadData = async () => {
-      const [moneyResult, formatResult, warResult] = await Promise.all([
-        getTripMoneyTotalsAction(tripId),
-        getTripFormatStandingsAction(tripId),
-        getWarTotalsAction(tripId),
-      ])
+      try {
+        const [moneyResult, formatResult, warResult] = await Promise.all([
+          getTripMoneyTotalsAction(tripId),
+          getTripFormatStandingsAction(tripId),
+          getWarTotalsAction(tripId),
+        ])
 
-      if (!moneyResult.success) {
-        setError(moneyResult.error || 'Failed to load money totals')
-      } else {
-        setPlayerTotals(moneyResult.playerTotals)
-      }
+        if (!moneyResult.success) {
+          console.error('Failed to load money totals:', moneyResult.error)
+          setError(moneyResult.error || 'Failed to load money totals')
+        } else {
+          setPlayerTotals(moneyResult.playerTotals)
+        }
 
-      if (formatResult.standings) {
-        setFormatStandings(formatResult.standings)
-      }
+        if (formatResult.standings) {
+          setFormatStandings(formatResult.standings)
+        }
 
-      if (warResult.totals) {
-        setWarTotals(warResult.totals)
+        if (warResult.totals) {
+          setWarTotals(warResult.totals)
+        }
+      } catch (err) {
+        console.error('Failed to load settle data:', err)
+        setError('An unexpected error occurred')
       }
 
       setLoading(false)
@@ -62,7 +69,15 @@ export default function SettlePage() {
   if (error) {
     return (
       <LayoutContainer className="py-6">
-        <div className="text-center text-bad">{error}</div>
+        <h1 className="mb-6 font-display text-2xl font-bold text-text-0">
+          Trip Money
+        </h1>
+        <ErrorCard
+          title="Unable to Load Settlements"
+          message="Settlement data isn't available yet. Please try again later."
+          backHref={`/trip/${tripId}`}
+          backLabel="Back to Trip"
+        />
       </LayoutContainer>
     )
   }

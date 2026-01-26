@@ -4,12 +4,12 @@ import { getTripAction } from '@/lib/supabase/trip-actions'
 import { getPlayersAction } from '@/lib/supabase/player-actions'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { Card } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { SpectatorLinkCopyButton } from '@/components/trip/SpectatorLinkCopyButton'
 import { SetupChecklist } from '@/components/trip/SetupChecklist'
 import { WarToggle } from '@/components/trip/WarToggle'
 import { TripTeamAssignment } from '@/components/trip/TripTeamAssignment'
+import { TripRoundsSection } from '@/components/trip/TripRoundsSection'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,24 +27,6 @@ function formatDate(dateStr: string | null): string | null {
   })
 }
 
-function formatRoundDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
-function formatTeeTime(teeTimeStr: string | null): string | null {
-  if (!teeTimeStr) return null
-  const date = new Date(teeTimeStr)
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
-}
-
 export default async function TripPage({ params }: TripPageProps) {
   const [tripResult, playersResult] = await Promise.all([
     getTripAction(params.tripId),
@@ -59,7 +41,6 @@ export default async function TripPage({ params }: TripPageProps) {
 
   const isAdmin = userRole === 'admin'
   const hasPlayers = trip.playerCount > 0
-  const hasRounds = trip.roundCount > 0
   const players = playersResult.players || []
 
   return (
@@ -195,78 +176,12 @@ export default async function TripPage({ params }: TripPageProps) {
       )}
 
       {/* Section D: Rounds on this Trip */}
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-display text-lg font-bold text-text-0">
-            Rounds on this Trip
-          </h2>
-          {hasPlayers && hasRounds && (
-            <Link href={`/trip/${params.tripId}/round/new`}>
-              <Button variant="secondary">
-                <PlusIcon />
-                New Round
-              </Button>
-            </Link>
-          )}
-        </div>
-
-        {trip.recentRounds.length === 0 ? (
-          <Card className="p-8 text-center">
-            <p className="text-text-2">
-              {hasPlayers
-                ? 'No rounds yet. Create your first round to start scoring.'
-                : 'Add players first, then create your first round.'}
-            </p>
-            {hasPlayers && (
-              <Link href={`/trip/${params.tripId}/round/new`}>
-                <Button variant="secondary" className="mt-4">
-                  Create First Round
-                </Button>
-              </Link>
-            )}
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {trip.recentRounds.map((round) => (
-              <Link
-                key={round.id}
-                href={`/trip/${params.tripId}/round/${round.id}`}
-              >
-                <Card className="p-4 transition-all hover:border-accent/50 active:scale-[0.99]">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-text-0">{round.name}</p>
-                      <p className="text-xs text-text-2">
-                        {formatRoundDate(round.date)}
-                        {round.tee_time && (
-                          <span className="ml-1.5 text-text-1">
-                            {formatTeeTime(round.tee_time)}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <Badge
-                      variant={
-                        round.status === 'in_progress'
-                          ? 'live'
-                          : round.status === 'completed'
-                            ? 'positive'
-                            : 'default'
-                      }
-                    >
-                      {round.status === 'in_progress'
-                        ? 'Live'
-                        : round.status === 'completed'
-                          ? 'Completed'
-                          : 'Upcoming'}
-                    </Badge>
-                  </div>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+      <TripRoundsSection
+        tripId={params.tripId}
+        rounds={trip.recentRounds}
+        hasPlayers={hasPlayers}
+        isAdmin={isAdmin}
+      />
     </LayoutContainer>
   )
 }
@@ -318,14 +233,6 @@ function ChevronRightIcon() {
   return (
     <svg className="h-5 w-5 text-text-2" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-    </svg>
-  )
-}
-
-function PlusIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
     </svg>
   )
 }

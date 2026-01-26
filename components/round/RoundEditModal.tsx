@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { RoundFormatSelector, type RoundFormat } from '@/components/round/RoundFormatSelector'
 import { updateRoundAction } from '@/lib/supabase/round-actions'
 
 interface RoundEditModalProps {
@@ -14,6 +15,7 @@ interface RoundEditModalProps {
     tee_time: string | null
     status: 'upcoming' | 'in_progress' | 'completed'
     format: string
+    scoring_basis?: 'gross' | 'net'
   }
   hasScores: boolean
   onClose: () => void
@@ -33,6 +35,10 @@ export function RoundEditModal({
   const [teeTime, setTeeTime] = useState(
     round.tee_time ? round.tee_time.split('T')[1]?.slice(0, 5) || '' : ''
   )
+  const [format, setFormat] = useState<RoundFormat>(round.format as RoundFormat)
+  const [scoringBasis, setScoringBasis] = useState<'gross' | 'net'>(
+    round.scoring_basis || 'net'
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -40,8 +46,8 @@ export function RoundEditModal({
   const canEditName = true
   const canEditDate = true
   const canEditTeeTime = round.status !== 'completed'
-  // Course/format can only be edited for upcoming rounds with no scores
-  const canEditCourseFormat = round.status === 'upcoming' && !hasScores
+  // Stricter: format locked if ANY scores exist OR round not upcoming
+  const canEditFormat = round.status === 'upcoming' && !hasScores
 
   const handleSave = async () => {
     setSaving(true)
@@ -57,6 +63,11 @@ export function RoundEditModal({
       name: name.trim(),
       date,
       tee_time: teeTimeTimestamp,
+      // Only include format/scoring_basis if editable
+      ...(canEditFormat && {
+        format,
+        scoring_basis: scoringBasis,
+      }),
     })
 
     if (result.success) {
@@ -70,7 +81,7 @@ export function RoundEditModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg-0/80 backdrop-blur-sm p-4">
-      <Card className="w-full max-w-md p-6">
+      <Card className="w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
         <h2 className="mb-4 font-display text-xl font-bold text-text-0">
           Edit Round
         </h2>
@@ -118,11 +129,30 @@ export function RoundEditModal({
             />
           </div>
 
-          {!canEditCourseFormat && (
+          {/* Format editing - only for upcoming rounds without scores */}
+          {canEditFormat ? (
+            <>
+              <RoundFormatSelector value={format} onChange={setFormat} />
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-text-1">
+                  Scoring Basis
+                </label>
+                <select
+                  value={scoringBasis}
+                  onChange={(e) => setScoringBasis(e.target.value as 'gross' | 'net')}
+                  className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                >
+                  <option value="net">Net (Handicap)</option>
+                  <option value="gross">Gross</option>
+                </select>
+              </div>
+            </>
+          ) : (
             <div className="rounded-card-sm bg-bg-2 p-3 text-sm text-text-2">
               {hasScores
-                ? 'Course and format cannot be changed because scores have been recorded.'
-                : 'Course and format cannot be changed after the round has started.'}
+                ? 'Format cannot be changed because scores have been recorded.'
+                : 'Format cannot be changed after the round has started.'}
             </div>
           )}
 

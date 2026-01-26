@@ -22,23 +22,30 @@ export function PlayerEntry({
   onRemovePlayer,
   className,
 }: PlayerEntryProps) {
-  const handleAddPlayer = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const form = e.currentTarget
-    const nameInput = form.elements.namedItem('playerName') as HTMLInputElement
-    const handicapInput = form.elements.namedItem('playerHandicap') as HTMLInputElement
+  const handleAddPlayer = () => {
+    const nameInput = document.getElementById('playerName') as HTMLInputElement
+    const handicapInput = document.getElementById('playerHandicap') as HTMLInputElement
+
+    if (!nameInput) return
 
     const name = nameInput.value.trim()
     if (!name) return
 
-    const handicap = handicapInput.value ? parseFloat(handicapInput.value) : null
+    const handicap = handicapInput?.value ? parseFloat(handicapInput.value) : null
 
     onAddPlayer(name, handicap)
 
-    // Reset form
+    // Reset inputs
     nameInput.value = ''
-    handicapInput.value = ''
+    if (handicapInput) handicapInput.value = ''
     nameInput.focus()
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAddPlayer()
+    }
   }
 
   return (
@@ -72,29 +79,32 @@ export function PlayerEntry({
         </div>
       )}
 
-      {/* Add player form */}
-      <form onSubmit={handleAddPlayer} className="flex gap-2">
+      {/* Add player inputs (no nested form to prevent parent form submission) */}
+      <div className="flex gap-2">
         <input
-          name="playerName"
+          id="playerName"
           type="text"
           placeholder="Player name"
+          onKeyDown={handleKeyDown}
           className={cn(
             'flex-1 min-w-0 rounded-button border border-stroke bg-bg-2 px-3 py-2 text-sm text-text-0',
             'placeholder:text-text-2 focus:border-accent focus:outline-none'
           )}
         />
         <input
-          name="playerHandicap"
+          id="playerHandicap"
           type="number"
           step="0.1"
           placeholder="Hdcp"
+          onKeyDown={handleKeyDown}
           className={cn(
             'w-16 rounded-button border border-stroke bg-bg-2 px-3 py-2 text-sm text-text-0 text-center',
             'placeholder:text-text-2 focus:border-accent focus:outline-none'
           )}
         />
         <button
-          type="submit"
+          type="button"
+          onClick={handleAddPlayer}
           className={cn(
             'flex h-10 w-10 items-center justify-center rounded-button',
             'bg-accent text-bg-0 hover:brightness-110 transition-all',
@@ -103,7 +113,7 @@ export function PlayerEntry({
         >
           <PlusIcon />
         </button>
-      </form>
+      </div>
 
       {players.length === 0 && (
         <p className="mt-2 text-xs text-text-2">

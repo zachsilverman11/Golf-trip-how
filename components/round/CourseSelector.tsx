@@ -14,6 +14,11 @@ interface CourseSelectorProps {
   selectedTeeId: string | null
   onTeeSelected: (teeId: string, courseName: string, teeName: string) => void
   className?: string
+  // Optional initial display info for restoring state from persistence
+  initialCourseInfo?: {
+    name: string
+    teeName: string
+  } | null
 }
 
 type Step = 'search' | 'select-tee' | 'selected'
@@ -32,6 +37,7 @@ export function CourseSelector({
   selectedTeeId,
   onTeeSelected,
   className,
+  initialCourseInfo,
 }: CourseSelectorProps) {
   const [step, setStep] = useState<Step>(selectedTeeId ? 'selected' : 'search')
   const [query, setQuery] = useState('')
@@ -42,7 +48,20 @@ export function CourseSelector({
   const [error, setError] = useState<string | null>(null)
   const [selectedApiCourse, setSelectedApiCourse] = useState<ApiSearchResult | null>(null)
   const [apiCourseDetails, setApiCourseDetails] = useState<ApiCourse | null>(null)
-  const [selectedCourse, setSelectedCourse] = useState<SelectedCourse | null>(null)
+  const [selectedCourse, setSelectedCourse] = useState<SelectedCourse | null>(
+    // Initialize from props if we have a selectedTeeId and initialCourseInfo
+    selectedTeeId && initialCourseInfo
+      ? {
+          name: initialCourseInfo.name,
+          location: '',
+          teeId: selectedTeeId,
+          teeName: initialCourseInfo.teeName,
+          rating: 0,
+          slope: 0,
+          yards: 0,
+        }
+      : null
+  )
 
   // Load recent/existing courses
   useEffect(() => {

@@ -7,6 +7,7 @@ import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { ErrorCard } from '@/components/ui/ErrorCard'
 import { MatchStatus, PressStatus, PressButton } from '@/components/match'
 import { getMatchStateAction, syncMatchStateAction, updateMatchStakesAction } from '@/lib/supabase/match-actions'
 import { formatMoney, formatTeamNames, calculateExposure, formatMatchStatus } from '@/lib/match-utils'
@@ -28,16 +29,22 @@ export default function MatchPage() {
   // Load match state
   useEffect(() => {
     const loadData = async () => {
-      const result = await getMatchStateAction(roundId)
+      try {
+        const result = await getMatchStateAction(roundId)
 
-      if (!result.success || !result.state) {
-        setError(result.error || 'No match found for this round')
-        setLoading(false)
-        return
+        if (!result.success || !result.state) {
+          console.error('Failed to load match:', result.error)
+          setError(result.error || 'No match found for this round')
+          setLoading(false)
+          return
+        }
+
+        setMatchState(result.state)
+        setNewStake(result.state.stakePerMan)
+      } catch (err) {
+        console.error('Failed to load match:', err)
+        setError('An unexpected error occurred')
       }
-
-      setMatchState(result.state)
-      setNewStake(result.state.stakePerMan)
       setLoading(false)
     }
 
@@ -82,12 +89,12 @@ export default function MatchPage() {
   if (error || !matchState) {
     return (
       <LayoutContainer className="py-6">
-        <div className="text-center">
-          <p className="mb-4 text-text-2">{error || 'Match not found'}</p>
-          <Link href={`/trip/${tripId}/round/${roundId}`}>
-            <Button variant="secondary">Back to Round</Button>
-          </Link>
-        </div>
+        <ErrorCard
+          title="Match Not Available"
+          message={error || 'No match found for this round. The match may not have been set up yet.'}
+          backHref={`/trip/${tripId}/round/${roundId}`}
+          backLabel="Back to Round"
+        />
       </LayoutContainer>
     )
   }
