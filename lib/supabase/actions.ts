@@ -14,6 +14,7 @@ import type { HoleInfo, ApiCourse, ApiTee } from '@/lib/api/types'
 
 export interface SaveCourseInput {
   courseName: string
+  clubName?: string          // Facility/resort name (e.g., "Bandon Dunes")
   location: string
   country: 'US' | 'CA' | 'other'
   externalProvider?: string  // e.g., 'golfcourseapi'
@@ -65,6 +66,7 @@ export async function saveCourseAction(input: SaveCourseInput): Promise<SaveCour
         .from('courses')
         .insert({
           name: input.courseName,
+          club_name: input.clubName || null,
           location: input.location || null,
           country: input.country,
           external_provider: input.externalProvider || null,
@@ -300,9 +302,11 @@ export async function importCourseAction(
     .join(', ')
 
   // Use existing saveCourseAction
-  // Prefer course_name (specific course like "Pacific Dunes") over club_name for disambiguation
+  // Store course_name as primary name, club_name as facility name
+  // This enables display like "Pacific Dunes at Bandon Dunes"
   return saveCourseAction({
     courseName: course.course_name || course.club_name || 'Unknown Course',
+    clubName: course.club_name || undefined,
     location,
     country: course.location?.country === 'Canada' ? 'CA' : 'US',
     externalProvider: 'golfcourseapi',

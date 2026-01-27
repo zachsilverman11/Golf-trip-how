@@ -104,7 +104,7 @@ export default function NewCoursePage() {
         {step === 'tee' && selectedSearch && (
           <TeeSelector
             courseId={selectedSearch.id}
-            courseName={selectedSearch.club_name || selectedSearch.course_name || 'Course'}
+            courseName={selectedSearch.course_name || selectedSearch.club_name || 'Course'}
             onSelect={handleTeeSelect}
             onBack={() => setStep('search')}
           />

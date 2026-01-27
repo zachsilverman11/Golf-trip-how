@@ -8,7 +8,8 @@
 
 export interface DbCourse {
   id: string
-  name: string
+  name: string                      // Course name (e.g., "Pacific Dunes")
+  club_name: string | null          // Facility/resort name (e.g., "Bandon Dunes")
   location: string | null
   country: 'US' | 'CA' | 'other'
   external_provider: string | null  // e.g., 'golfcourseapi'

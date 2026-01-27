@@ -337,7 +337,10 @@ export function CourseSelector({
                   index !== recentCourses.length - 1 && 'border-b border-stroke/60'
                 )}
               >
-                <p className="font-medium text-text-0 mb-1">{course.name}</p>
+                <p className="font-medium text-text-0 mb-0.5">{course.name}</p>
+                {course.club_name && course.club_name !== course.name && (
+                  <p className="text-sm text-text-1 mb-1">at {course.club_name}</p>
+                )}
                 <div className="flex flex-wrap gap-2">
                   {course.tees?.map((tee) => (
                     <button
@@ -357,9 +360,14 @@ export function CourseSelector({
 
       {/* No results message */}
       {query.length >= 2 && !loading && results.length === 0 && (
-        <p className="text-center text-sm text-text-2 py-4">
-          No courses found. Try a different search term.
-        </p>
+        <div className="text-center py-4">
+          <p className="text-sm text-text-2 mb-1">
+            No courses found for &quot;{query}&quot;
+          </p>
+          <p className="text-xs text-text-2">
+            Try searching by facility name (e.g., &quot;Bandon Dunes&quot; instead of &quot;Sheep Ranch&quot;)
+          </p>
+        </div>
       )}
     </div>
   )

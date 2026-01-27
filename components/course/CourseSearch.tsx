@@ -126,8 +126,11 @@ export function CourseSearch({
               )}
             >
               <span className="text-body font-medium text-text-0">
-                {course.club_name || course.course_name}
+                {course.course_name || course.club_name}
               </span>
+              {course.course_name && course.club_name && course.course_name !== course.club_name && (
+                <span className="text-sm text-text-1">at {course.club_name}</span>
+              )}
               <span className="text-sm text-text-2">
                 {formatLocation(course.location)}
               </span>
@@ -139,7 +142,10 @@ export function CourseSearch({
       {/* No Results */}
       {hasSearched && !loading && results.length === 0 && query.length >= 2 && (
         <div className="text-center py-6">
-          <p className="text-text-2 mb-4">No courses found for &quot;{query}&quot;</p>
+          <p className="text-text-2 mb-2">No courses found for &quot;{query}&quot;</p>
+          <p className="text-sm text-text-2 mb-4">
+            Try searching by facility name (e.g., &quot;Bandon Dunes&quot; instead of &quot;Sheep Ranch&quot;)
+          </p>
           <Button variant="secondary" onClick={onManualEntry}>
             Add course manually
           </Button>
