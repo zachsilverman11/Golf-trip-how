@@ -16,6 +16,7 @@ export interface CreateQuickRoundInput {
   format: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
   scoringBasis: 'gross' | 'net'
   teeTime: string | null  // HH:MM format
+  teamAssignments?: Record<string, 1 | 2>  // draftPlayerId -> team (1 or 2)
 }
 
 export interface QuickRoundResult {
@@ -27,140 +28,102 @@ export interface QuickRoundResult {
 
 /**
  * Creates a "Quick Round" - a trip with a single round using inline player entry.
- * Trip is named "Quick Round - {date}" for easy identification.
+ * Uses a Supabase RPC (SECURITY DEFINER) to atomically create all entities,
+ * bypassing the RLS race condition that occurred with separate inserts.
  */
 export async function createQuickRoundAction(input: CreateQuickRoundInput): Promise<QuickRoundResult> {
   const supabase = createClient()
   const user = await getCurrentUser()
 
   if (!user) {
-    return { success: false, error: 'Not authenticated' }
+    return { success: false, error: 'You must be logged in to start a round' }
   }
 
+  // Client-side validation (RPC will also validate)
   if (input.players.length === 0) {
     return { success: false, error: 'At least one player is required' }
   }
 
-  const today = new Date().toISOString().split('T')[0]
-  const displayDate = new Date().toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  })
+  // Format-specific validation
+  if (input.format === 'match_play') {
+    if (input.players.length !== 2 && input.players.length !== 4) {
+      return { success: false, error: 'Match play requires 2 or 4 players' }
+    }
+    if (input.players.length === 4 && !input.teamAssignments) {
+      return { success: false, error: 'Match play with 4 players requires team assignments' }
+    }
+  }
+
+  if (input.format === 'points_hilo') {
+    if (input.players.length !== 4) {
+      return { success: false, error: 'Points Hi/Lo requires exactly 4 players' }
+    }
+    if (!input.teamAssignments) {
+      return { success: false, error: 'Points Hi/Lo requires team assignments' }
+    }
+  }
+
+  // Validate team assignments have 2 per team if provided
+  if (input.teamAssignments && input.players.length === 4) {
+    const team1Count = Object.values(input.teamAssignments).filter(t => t === 1).length
+    const team2Count = Object.values(input.teamAssignments).filter(t => t === 2).length
+    if (team1Count !== 2 || team2Count !== 2) {
+      return { success: false, error: 'Teams must have exactly 2 players each' }
+    }
+  }
 
   try {
-    // 1. Create the trip
-    const { data: trip, error: tripError } = await supabase
-      .from('trips')
-      .insert({
-        name: `Quick Round - ${displayDate}`,
-        description: input.courseName ? `Quick round at ${input.courseName}` : 'Quick round',
-        start_date: today,
-        end_date: today,
-        created_by: user.id,
-      })
-      .select('id')
-      .single()
-
-    if (tripError) {
-      console.error('Create trip error:', tripError)
-      return { success: false, error: tripError.message }
+    // Build payload for RPC
+    // Team assignments are already keyed by player index (0, 1, 2, 3) from the client
+    const payload = {
+      players: input.players.map(p => ({
+        name: p.name,
+        handicap: p.handicap,
+      })),
+      teeId: input.teeId,
+      courseName: input.courseName,
+      format: input.format,
+      scoringBasis: input.scoringBasis,
+      teeTime: input.teeTime,
+      ...(input.teamAssignments && { teamAssignments: input.teamAssignments }),
     }
 
-    // 2. Add user as trip admin
-    const { error: memberError } = await supabase
-      .from('trip_members')
-      .insert({
-        trip_id: trip.id,
-        user_id: user.id,
-        role: 'admin',
-      })
-
-    if (memberError) {
-      console.error('Add member error:', memberError)
-    }
-
-    // 3. Create players
-    const playersToInsert = input.players.map((p) => ({
-      trip_id: trip.id,
-      name: p.name,
-      handicap_index: p.handicap,
-    }))
-
-    const { data: players, error: playersError } = await supabase
-      .from('players')
-      .insert(playersToInsert)
-      .select('id, name')
-
-    if (playersError || !players) {
-      console.error('Create players error:', playersError)
-      return { success: false, error: playersError?.message || 'Failed to create players' }
-    }
-
-    // 4. Create the round
-    let teeTimeTimestamp: string | null = null
-    if (input.teeTime) {
-      teeTimeTimestamp = `${today}T${input.teeTime}:00`
-    }
-
-    const roundName = input.courseName || 'Quick Round'
-
-    const { data: round, error: roundError } = await supabase
-      .from('rounds')
-      .insert({
-        trip_id: trip.id,
-        tee_id: input.teeId,
-        name: roundName,
-        date: today,
-        tee_time: teeTimeTimestamp,
-        format: input.format,
-        scoring_basis: input.scoringBasis,
-        status: 'upcoming',
-      })
-      .select('id')
-      .single()
-
-    if (roundError) {
-      console.error('Create round error:', roundError)
-      return { success: false, error: roundError.message }
-    }
-
-    // 5. Create a single group with all players
-    const { data: group, error: groupError } = await supabase
-      .from('groups')
-      .insert({
-        round_id: round.id,
-        group_number: 1,
-        tee_time: input.teeTime || null,
-        scorer_player_id: players[0]?.id || null,
-      })
-      .select('id')
-      .single()
-
-    if (groupError) {
-      console.error('Create group error:', groupError)
-      return { success: false, error: groupError.message }
-    }
-
-    // 6. Add all players to the group
-    const groupPlayersData = players.map((player) => {
-      const inputPlayer = input.players.find((p) => p.name === player.name)
-      return {
-        group_id: group.id,
-        player_id: player.id,
-        playing_handicap: inputPlayer?.handicap ?? null,
-      }
+    // Call the atomic RPC
+    const { data, error } = await supabase.rpc('create_quick_round', {
+      payload,
     })
 
-    const { error: gpError } = await supabase
-      .from('group_players')
-      .insert(groupPlayersData)
+    if (error) {
+      console.error('create_quick_round RPC error:', error)
 
-    if (gpError) {
-      console.error('Add players to group error:', gpError)
+      // Map specific errors to user-friendly messages
+      if (error.message.includes('Not authenticated')) {
+        return { success: false, error: 'You must be logged in to start a round' }
+      }
+      if (error.message.includes('At least one player')) {
+        return { success: false, error: 'At least one player is required' }
+      }
+      if (error.message.includes('requires')) {
+        return { success: false, error: error.message }
+      }
+
+      return { success: false, error: 'Failed to create round. Please try again.' }
+    }
+
+    // RPC returns array with single row containing trip_id and round_id
+    const result = Array.isArray(data) ? data[0] : data
+
+    if (!result?.trip_id || !result?.round_id) {
+      console.error('create_quick_round: Missing IDs in response', data)
+      return { success: false, error: 'Failed to create round. Please try again.' }
     }
 
     revalidatePath('/trips')
-    return { success: true, tripId: trip.id, roundId: round.id }
+    return {
+      success: true,
+      tripId: result.trip_id,
+      roundId: result.round_id,
+    }
   } catch (err) {
     console.error('Create quick round error:', err)
     return {

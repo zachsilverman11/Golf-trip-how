@@ -1,20 +1,65 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { PlayerEntry } from '@/components/quick-round/PlayerEntry'
+import { QuickRoundTeams } from '@/components/quick-round/QuickRoundTeams'
 import { CourseSelector } from '@/components/round/CourseSelector'
 import { RoundFormatSelector, type RoundFormat } from '@/components/round/RoundFormatSelector'
 import { createQuickRoundAction } from '@/lib/supabase/quick-round-actions'
 import { useQuickRoundDraft, type QuickRoundPlayer } from '@/hooks/useQuickRoundDraft'
 
+/**
+ * Determine if teams UI should be shown based on format and player count
+ */
+function shouldShowTeams(format: RoundFormat, playerCount: number): boolean {
+  if (format === 'points_hilo') {
+    return playerCount === 4
+  }
+  if (format === 'match_play') {
+    return playerCount === 4  // 2-player match play is 1v1, no teams needed
+  }
+  return false
+}
+
+/**
+ * Determine if teams are required for submission
+ */
+function teamsRequired(format: RoundFormat, playerCount: number): boolean {
+  if (format === 'points_hilo') {
+    return true  // Always requires teams (and 4 players)
+  }
+  if (format === 'match_play' && playerCount === 4) {
+    return true  // 4-player match play requires teams (2v2)
+  }
+  return false
+}
+
+/**
+ * Get player count validation message for format
+ */
+function getPlayerCountError(format: RoundFormat, playerCount: number): string | null {
+  if (format === 'match_play') {
+    if (playerCount !== 2 && playerCount !== 4 && playerCount > 0) {
+      return 'Match play requires 2 players (1v1) or 4 players (2v2)'
+    }
+  }
+  if (format === 'points_hilo') {
+    if (playerCount !== 4 && playerCount > 0) {
+      return 'Points Hi/Lo requires exactly 4 players'
+    }
+  }
+  return null
+}
+
 export default function QuickRoundPage() {
   const router = useRouter()
   const { draft, isHydrated, updateDraft, clearDraft } = useQuickRoundDraft()
+  const submitRef = useRef(false)  // Prevent double-submit
 
   // UI state (not persisted)
   const [submitting, setSubmitting] = useState(false)
@@ -36,13 +81,47 @@ export default function QuickRoundPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Prevent double-submit
+    if (submitRef.current || submitting) {
+      return
+    }
+
     if (draft.players.length === 0) {
       setError('Add at least one player')
       return
     }
 
+    // Format-specific validation
+    const playerCountError = getPlayerCountError(draft.format, draft.players.length)
+    if (playerCountError) {
+      setError(playerCountError)
+      return
+    }
+
+    // Team validation for formats that require it
+    if (teamsRequired(draft.format, draft.players.length)) {
+      const team1Count = Object.values(draft.teamAssignments).filter(t => t === 1).length
+      const team2Count = Object.values(draft.teamAssignments).filter(t => t === 2).length
+      if (team1Count !== 2 || team2Count !== 2) {
+        setError('Teams must have exactly 2 players each')
+        return
+      }
+    }
+
+    submitRef.current = true
     setSubmitting(true)
     setError(null)
+
+    // Convert team assignments from draft player IDs to array indices
+    // This maps { "draft-uuid-1": 1, "draft-uuid-2": 2, ... } to { "0": 1, "1": 2, ... }
+    const teamAssignmentsByIndex = teamsRequired(draft.format, draft.players.length)
+      ? Object.fromEntries(
+          draft.players.map((player, idx) => [
+            idx.toString(),
+            draft.teamAssignments[player.id],
+          ])
+        ) as Record<string, 1 | 2>
+      : undefined
 
     const result = await createQuickRoundAction({
       players: draft.players.map((p) => ({ name: p.name, handicap: p.handicap })),
@@ -51,6 +130,7 @@ export default function QuickRoundPage() {
       format: draft.format,
       scoringBasis: draft.scoringBasis,
       teeTime: draft.teeTime || null,
+      teamAssignments: teamAssignmentsByIndex,
     })
 
     if (result.success && result.tripId && result.roundId) {
@@ -64,10 +144,19 @@ export default function QuickRoundPage() {
     } else {
       setError(result.error || 'Failed to create round')
       setSubmitting(false)
+      submitRef.current = false
     }
   }
 
-  const isValid = draft.players.length > 0
+  // Calculate validity
+  const playerCountError = getPlayerCountError(draft.format, draft.players.length)
+  const hasValidPlayerCount = draft.players.length > 0 && !playerCountError
+  const needsTeams = teamsRequired(draft.format, draft.players.length)
+  const hasValidTeams = !needsTeams || (
+    Object.values(draft.teamAssignments).filter(t => t === 1).length === 2 &&
+    Object.values(draft.teamAssignments).filter(t => t === 2).length === 2
+  )
+  const isValid = hasValidPlayerCount && hasValidTeams
 
   // Show skeleton while hydrating from localStorage
   if (!isHydrated) {
@@ -98,6 +187,8 @@ export default function QuickRoundPage() {
     )
   }
 
+  const showTeamsUI = shouldShowTeams(draft.format, draft.players.length)
+
   return (
     <LayoutContainer className="py-6">
       {/* Header */}
@@ -125,7 +216,27 @@ export default function QuickRoundPage() {
             onAddPlayer={addPlayer}
             onRemovePlayer={removePlayer}
           />
+          {/* Player count hint for team formats */}
+          {(draft.format === 'match_play' || draft.format === 'points_hilo') && draft.players.length > 0 && draft.players.length < 4 && (
+            <p className="mt-2 text-xs text-text-2">
+              {draft.format === 'match_play'
+                ? `Add ${draft.players.length === 1 ? '1 more player for 1v1' : `${4 - draft.players.length} more for 2v2`}`
+                : `Add ${4 - draft.players.length} more player${4 - draft.players.length > 1 ? 's' : ''} for Points Hi/Lo`
+              }
+            </p>
+          )}
         </Card>
+
+        {/* Teams (conditionally shown) */}
+        {showTeamsUI && (
+          <Card className="p-4 mb-4">
+            <QuickRoundTeams
+              players={draft.players}
+              teamAssignments={draft.teamAssignments}
+              onTeamAssignmentsChange={(assignments) => updateDraft({ teamAssignments: assignments })}
+            />
+          </Card>
+        )}
 
         {/* Course (Optional) */}
         <Card className="p-4 mb-4">
@@ -199,6 +310,13 @@ export default function QuickRoundPage() {
             </div>
           </label>
         </Card>
+
+        {/* Validation/error messages */}
+        {playerCountError && (
+          <div className="mb-4 rounded-card bg-warning/10 p-4 text-warning text-sm">
+            {playerCountError}
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 rounded-card bg-bad/10 p-4 text-bad">
