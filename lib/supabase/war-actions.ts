@@ -3,7 +3,8 @@
 import { createClient } from './server'
 import { getCurrentUser } from './auth-actions'
 import { revalidatePath } from 'next/cache'
-import type { DbTripTeamAssignment } from './types'
+import { computeFormatState } from '../format-utils'
+import type { DbTripTeamAssignment, DbHole } from './types'
 
 // ============================================================================
 // Types
@@ -15,6 +16,7 @@ export interface WarActionResult {
 }
 
 export interface WarTotals {
+  competitionName: string
   teamA: {
     points: number
     wins: number
@@ -27,6 +29,12 @@ export interface WarTotals {
     losses: number
     ties: number
   }
+  rounds: {
+    roundName: string
+    roundFormat: string
+    teamAPoints: number
+    teamBPoints: number
+  }[]
 }
 
 // ============================================================================
@@ -62,6 +70,43 @@ export async function toggleWarModeAction(
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to toggle war mode',
+    }
+  }
+}
+
+// ============================================================================
+// Update Competition Name
+// ============================================================================
+
+export async function updateCompetitionNameAction(
+  tripId: string,
+  name: string
+): Promise<WarActionResult> {
+  const supabase = createClient()
+  const user = await getCurrentUser()
+
+  if (!user) {
+    return { success: false, error: 'Not authenticated' }
+  }
+
+  try {
+    const { error } = await supabase
+      .from('trips')
+      .update({ competition_name: name.trim() || 'The Cup' })
+      .eq('id', tripId)
+
+    if (error) {
+      console.error('Update competition name error:', error)
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath(`/trip/${tripId}`)
+    return { success: true }
+  } catch (err) {
+    console.error('Update competition name error:', err)
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update competition name',
     }
   }
 }
@@ -159,7 +204,7 @@ export async function saveWarTeamAssignmentsAction(
 }
 
 // ============================================================================
-// Calculate War Totals
+// Calculate War Totals — Fixed 1/0.5/0 Scoring
 // ============================================================================
 
 export async function getWarTotalsAction(tripId: string): Promise<{
@@ -174,6 +219,19 @@ export async function getWarTotalsAction(tripId: string): Promise<{
   }
 
   try {
+    // Get trip for competition name
+    const { data: trip, error: tripError } = await supabase
+      .from('trips')
+      .select('competition_name')
+      .eq('id', tripId)
+      .single()
+
+    if (tripError) {
+      return { totals: null, error: tripError.message }
+    }
+
+    const competitionName = trip?.competition_name || 'The Cup'
+
     // Get team assignments
     const { data: assignments, error: assignmentsError } = await supabase
       .from('trip_team_assignments')
@@ -194,82 +252,238 @@ export async function getWarTotalsAction(tripId: string): Promise<{
       playerTeamMap[a.player_id] = a.team as 'A' | 'B'
     }
 
-    // Get all matches for this trip
+    // Get all rounds for this trip
     const { data: rounds, error: roundsError } = await supabase
       .from('rounds')
-      .select('id, format')
+      .select('id, name, format, status')
       .eq('trip_id', tripId)
 
     if (roundsError) {
       return { totals: null, error: roundsError.message }
     }
 
-    // Get matches for valid formats (match_play, points_hilo)
-    const validRoundIds = rounds
-      ?.filter((r) => r.format === 'match_play' || r.format === 'points_hilo')
-      .map((r) => r.id) || []
+    // Filter to relevant formats
+    const matchPlayRounds = rounds?.filter((r) => r.format === 'match_play') || []
+    const pointsHiLoRounds = rounds?.filter((r) => r.format === 'points_hilo') || []
 
-    if (validRoundIds.length === 0) {
-      return {
-        totals: {
-          teamA: { points: 0, wins: 0, losses: 0, ties: 0 },
-          teamB: { points: 0, wins: 0, losses: 0, ties: 0 },
-        },
+    const totals: WarTotals = {
+      competitionName,
+      teamA: { points: 0, wins: 0, losses: 0, ties: 0 },
+      teamB: { points: 0, wins: 0, losses: 0, ties: 0 },
+      rounds: [],
+    }
+
+    // ---- MATCH PLAY SCORING (1/0.5/0 per match) ----
+    const matchPlayRoundIds = matchPlayRounds.map((r) => r.id)
+
+    if (matchPlayRoundIds.length > 0) {
+      const { data: matches, error: matchesError } = await supabase
+        .from('matches')
+        .select('*, round_id')
+        .in('round_id', matchPlayRoundIds)
+        .eq('status', 'completed')
+
+      if (matchesError) {
+        return { totals: null, error: matchesError.message }
+      }
+
+      // Group matches by round for per-round breakdown
+      const matchesByRound: Record<string, typeof matches> = {}
+      for (const match of matches || []) {
+        if (!matchesByRound[match.round_id]) {
+          matchesByRound[match.round_id] = []
+        }
+        matchesByRound[match.round_id].push(match)
+      }
+
+      for (const round of matchPlayRounds) {
+        const roundMatches = matchesByRound[round.id] || []
+        let roundTeamA = 0
+        let roundTeamB = 0
+
+        for (const match of roundMatches) {
+          // Determine which war team each match team belongs to
+          const matchTeamAWarTeam = playerTeamMap[match.team_a_player1_id]
+          const matchTeamBWarTeam = playerTeamMap[match.team_b_player1_id]
+
+          if (!matchTeamAWarTeam || !matchTeamBWarTeam) continue
+          if (matchTeamAWarTeam === matchTeamBWarTeam) continue // Same war team, doesn't count
+
+          if (match.winner === 'team_a') {
+            // Match team A won — award 1 point to their war team
+            if (matchTeamAWarTeam === 'A') {
+              totals.teamA.points += 1
+              totals.teamA.wins++
+              totals.teamB.losses++
+              roundTeamA += 1
+            } else {
+              totals.teamB.points += 1
+              totals.teamB.wins++
+              totals.teamA.losses++
+              roundTeamB += 1
+            }
+          } else if (match.winner === 'team_b') {
+            // Match team B won — award 1 point to their war team
+            if (matchTeamBWarTeam === 'A') {
+              totals.teamA.points += 1
+              totals.teamA.wins++
+              totals.teamB.losses++
+              roundTeamA += 1
+            } else {
+              totals.teamB.points += 1
+              totals.teamB.wins++
+              totals.teamA.losses++
+              roundTeamB += 1
+            }
+          } else if (match.winner === 'halved') {
+            totals.teamA.points += 0.5
+            totals.teamB.points += 0.5
+            totals.teamA.ties++
+            totals.teamB.ties++
+            roundTeamA += 0.5
+            roundTeamB += 0.5
+          }
+        }
+
+        if (roundMatches.length > 0) {
+          totals.rounds.push({
+            roundName: round.name,
+            roundFormat: 'Match Play',
+            teamAPoints: roundTeamA,
+            teamBPoints: roundTeamB,
+          })
+        }
       }
     }
 
-    const { data: matches, error: matchesError } = await supabase
-      .from('matches')
-      .select('*')
-      .in('round_id', validRoundIds)
-      .eq('status', 'completed')
+    // ---- POINTS HI/LO SCORING (1/0.5/0 per round based on team totals) ----
+    for (const round of pointsHiLoRounds) {
+      if (round.status !== 'completed' && round.status !== 'in_progress') continue
 
-    if (matchesError) {
-      return { totals: null, error: matchesError.message }
-    }
+      // Get round data with tees and groups
+      const { data: roundData, error: roundDataError } = await supabase
+        .from('rounds')
+        .select(`
+          id,
+          format,
+          tees (
+            id,
+            holes (*)
+          ),
+          groups (
+            id,
+            group_players (
+              id,
+              player_id,
+              playing_handicap,
+              team_number,
+              players (id, name)
+            )
+          )
+        `)
+        .eq('id', round.id)
+        .single()
 
-    // Calculate totals
-    const totals: WarTotals = {
-      teamA: { points: 0, wins: 0, losses: 0, ties: 0 },
-      teamB: { points: 0, wins: 0, losses: 0, ties: 0 },
-    }
+      if (roundDataError || !roundData) continue
 
-    for (const match of matches || []) {
-      // Determine which war team each match team belongs to
-      const matchTeamAWarTeam = playerTeamMap[match.team_a_player1_id]
-      const matchTeamBWarTeam = playerTeamMap[match.team_b_player1_id]
+      const holes = (roundData.tees as any)?.holes as DbHole[] | undefined
+      if (!holes?.length) continue
 
-      if (!matchTeamAWarTeam || !matchTeamBWarTeam) continue
-      if (matchTeamAWarTeam === matchTeamBWarTeam) continue // Same war team, doesn't count
+      // Build players array
+      const players: Array<{
+        playerId: string
+        playerName: string
+        playingHandicap: number | null
+        teamNumber: 1 | 2 | null
+      }> = []
 
-      // Determine winner (positive final_result = team A wins holes)
-      if (match.final_result > 0) {
-        // Match team A won
-        if (matchTeamAWarTeam === 'A') {
-          totals.teamA.wins++
-          totals.teamA.points += match.final_result
-          totals.teamB.losses++
-        } else {
-          totals.teamB.wins++
-          totals.teamB.points += match.final_result
-          totals.teamA.losses++
+      for (const group of roundData.groups || []) {
+        for (const gp of group.group_players || []) {
+          const player = (gp as any).players
+          if (player) {
+            players.push({
+              playerId: player.id,
+              playerName: player.name,
+              playingHandicap: gp.playing_handicap,
+              teamNumber: gp.team_number as 1 | 2 | null,
+            })
+          }
         }
-      } else if (match.final_result < 0) {
-        // Match team B won
-        if (matchTeamBWarTeam === 'A') {
-          totals.teamA.wins++
-          totals.teamA.points += Math.abs(match.final_result)
-          totals.teamB.losses++
-        } else {
-          totals.teamB.wins++
-          totals.teamB.points += Math.abs(match.final_result)
-          totals.teamA.losses++
+      }
+
+      // Get scores
+      const { data: scores, error: scoresError } = await supabase
+        .from('scores')
+        .select('player_id, hole_number, gross_strokes')
+        .eq('round_id', round.id)
+
+      if (scoresError) continue
+
+      // Build scores map
+      const scoresMap: Record<string, Record<number, number>> = {}
+      for (const score of scores || []) {
+        if (!scoresMap[score.player_id]) {
+          scoresMap[score.player_id] = {}
         }
+        if (score.gross_strokes !== null) {
+          scoresMap[score.player_id][score.hole_number] = score.gross_strokes
+        }
+      }
+
+      // Compute format state
+      const formatState = computeFormatState(
+        'points_hilo',
+        round.id,
+        players,
+        scoresMap,
+        holes
+      )
+
+      if (!formatState || formatState.holesPlayed === 0) continue
+
+      // Map round teams to war teams
+      // For each team in the round, figure out which war team the majority of players belong to
+      const team1WarTeams = formatState.team1.players
+        .map((p) => playerTeamMap[p.id])
+        .filter(Boolean)
+      const team2WarTeams = formatState.team2.players
+        .map((p) => playerTeamMap[p.id])
+        .filter(Boolean)
+
+      // Determine war team for round team 1 and 2
+      const team1IsWarA = team1WarTeams.filter((t) => t === 'A').length >= team1WarTeams.filter((t) => t === 'B').length
+      const team1WarTeam = team1IsWarA ? 'A' : 'B'
+      const team2WarTeam = team1WarTeam === 'A' ? 'B' : 'A'
+
+      const team1Total = formatState.team1Total
+      const team2Total = formatState.team2Total
+
+      const warATotal = team1WarTeam === 'A' ? team1Total : team2Total
+      const warBTotal = team1WarTeam === 'A' ? team2Total : team1Total
+
+      // Compare totals: higher total wins the round point
+      if (warATotal > warBTotal) {
+        totals.teamA.points += 1
+        totals.teamA.wins++
+        totals.teamB.losses++
+      } else if (warBTotal > warATotal) {
+        totals.teamB.points += 1
+        totals.teamB.wins++
+        totals.teamA.losses++
       } else {
-        // Tie
+        // Tied
+        totals.teamA.points += 0.5
+        totals.teamB.points += 0.5
         totals.teamA.ties++
         totals.teamB.ties++
       }
+
+      totals.rounds.push({
+        roundName: round.name,
+        roundFormat: 'Points Hi/Lo',
+        teamAPoints: warATotal > warBTotal ? 1 : warATotal === warBTotal ? 0.5 : 0,
+        teamBPoints: warBTotal > warATotal ? 1 : warATotal === warBTotal ? 0.5 : 0,
+      })
     }
 
     return { totals }

@@ -10,6 +10,7 @@ import { GroupScorer } from '@/components/scoring/GroupScorer'
 import { MatchStrip } from '@/components/match'
 import { FormatStrip } from '@/components/scoring/FormatStrip'
 import { getRoundAction, updateRoundAction } from '@/lib/supabase/round-actions'
+import { getTripAction } from '@/lib/supabase/trip-actions'
 import { getRoundScoresMapAction, upsertScoreAction } from '@/lib/supabase/score-actions'
 import { getMatchStateAction, syncMatchStateAction } from '@/lib/supabase/match-actions'
 import { getFormatStateAction } from '@/lib/supabase/format-actions'
@@ -18,6 +19,7 @@ import type { DbRoundWithGroups, DbHole } from '@/lib/supabase/types'
 import type { MatchState } from '@/lib/supabase/match-types'
 import type { FormatState } from '@/lib/format-types'
 import { generateNarratives } from '@/lib/narrative-utils'
+import { CompetitionBadge } from '@/components/scoring/CompetitionBadge'
 
 interface Player {
   id: string
@@ -43,6 +45,7 @@ export default function ScorePage() {
   const [matchState, setMatchState] = useState<MatchState | null>(null)
   const [formatState, setFormatState] = useState<FormatState | null>(null)
   const [formatError, setFormatError] = useState<string | null>(null)
+  const [competitionName, setCompetitionName] = useState<string | null>(null)
   const [currentHole, setCurrentHole] = useState(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -124,6 +127,14 @@ export default function ScorePage() {
         } else if (formatResult.error) {
           // Teams not configured - will show setup prompt
           setFormatError(formatResult.error)
+        }
+      }
+
+      // Check if this round counts toward team competition
+      if (format === 'match_play' || format === 'points_hilo') {
+        const tripResult = await getTripAction(tripId)
+        if (tripResult.trip?.war_enabled) {
+          setCompetitionName((tripResult.trip as any).competition_name || 'The Cup')
         }
       }
 
@@ -314,6 +325,11 @@ export default function ScorePage() {
           <LiveIndicator isConnected={isConnected} />
         </div>
       </div>
+
+      {/* Competition Badge */}
+      {competitionName && (
+        <CompetitionBadge competitionName={competitionName} className="mb-3" />
+      )}
 
       {/* Live update toast */}
       {liveToast && (

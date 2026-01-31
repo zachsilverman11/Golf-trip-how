@@ -69,6 +69,7 @@ export interface DbTrip {
   created_by: string | null
   spectator_token: string | null
   war_enabled: boolean
+  competition_name: string | null
   created_at: string
   updated_at: string
 }

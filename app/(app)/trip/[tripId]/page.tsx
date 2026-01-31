@@ -7,10 +7,12 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { SpectatorLinkCopyButton } from '@/components/trip/SpectatorLinkCopyButton'
 import { SetupChecklist } from '@/components/trip/SetupChecklist'
-import { WarToggle } from '@/components/trip/WarToggle'
+import { TeamCompetitionToggle } from '@/components/trip/TeamCompetitionToggle'
 import { TripTeamAssignment } from '@/components/trip/TripTeamAssignment'
+import { CompetitionHeroCard } from '@/components/trip/CompetitionHeroCard'
 import { TripRoundsSection } from '@/components/trip/TripRoundsSection'
 import { FeedPreview } from '@/components/trip/FeedPreview'
+import { getWarTotalsAction, getWarTeamAssignmentsAction } from '@/lib/supabase/war-actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +45,22 @@ export default async function TripPage({ params }: TripPageProps) {
   const isAdmin = userRole === 'admin'
   const hasPlayers = trip.playerCount > 0
   const players = playersResult.players || []
+
+  // Load competition data if war mode enabled
+  let warTotals = null
+  let hasTeamAssignments = false
+  if (trip.war_enabled) {
+    const [totalsResult, assignmentsResult] = await Promise.all([
+      getWarTotalsAction(params.tripId),
+      getWarTeamAssignmentsAction(params.tripId),
+    ])
+    warTotals = totalsResult.totals
+    hasTeamAssignments = (assignmentsResult.assignments?.length || 0) > 0
+  }
+
+  const competitionName = (trip as any).competition_name || 'The Cup'
+  const showHeroCard = trip.war_enabled && hasTeamAssignments && warTotals &&
+    (warTotals.teamA.points > 0 || warTotals.teamB.points > 0 || warTotals.rounds.length > 0)
 
   return (
     <LayoutContainer className="py-6">
@@ -79,6 +97,18 @@ export default async function TripPage({ params }: TripPageProps) {
           </div>
         )}
       </section>
+
+      {/* Competition Hero Card (shown when competition has data) */}
+      {showHeroCard && warTotals && (
+        <CompetitionHeroCard
+          tripId={params.tripId}
+          competitionName={warTotals.competitionName}
+          teamAPoints={warTotals.teamA.points}
+          teamBPoints={warTotals.teamB.points}
+          totalRounds={warTotals.rounds.length}
+          className="mb-6"
+        />
+      )}
 
       {/* Section B: Setup Checklist (prominent when trip is new) */}
       <SetupChecklist
@@ -154,12 +184,13 @@ export default async function TripPage({ params }: TripPageProps) {
             </Card>
           )}
 
-          {/* War Mode (admin only) */}
+          {/* Team Competition (admin only) */}
           {isAdmin && hasPlayers && (
             <Card className="p-4">
-              <WarToggle
+              <TeamCompetitionToggle
                 tripId={params.tripId}
                 enabled={trip.war_enabled ?? false}
+                competitionName={competitionName}
               />
             </Card>
           )}
