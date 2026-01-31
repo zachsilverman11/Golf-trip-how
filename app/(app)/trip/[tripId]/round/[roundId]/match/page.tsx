@@ -118,11 +118,11 @@ export default function MatchPage() {
       {/* Header */}
       <div className="mb-4">
         <Link
-          href={`/trip/${tripId}/round/${roundId}/score`}
+          href={`/trip/${tripId}/round/${roundId}`}
           className="mb-2 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
         >
           <BackIcon />
-          Back to scoring
+          Back to round
         </Link>
         <h1 className="font-display text-xl font-bold text-text-0">
           Match Details
