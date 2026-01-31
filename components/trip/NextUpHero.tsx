@@ -1,8 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { TripCardMenu } from './TripCardMenu'
+import { EditTripModal } from './EditTripModal'
+import { DeleteTripDialog } from './DeleteTripDialog'
 
 interface NextUpHeroProps {
   tripId: string
@@ -76,23 +80,32 @@ export function NextUpHero({
   memberCount,
   description,
 }: NextUpHeroProps) {
+  const [showEdit, setShowEdit] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
   const countdown = getCountdownText(startDate, endDate)
   const dateRange = formatDateRange(startDate, endDate)
   const active = isActive(startDate, endDate)
 
   return (
+    <>
     <div className="relative overflow-hidden rounded-card border border-accent/20 bg-gradient-to-br from-accent/10 via-bg-1 to-bg-1">
       {/* Subtle accent glow */}
       <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-accent/8 blur-3xl" />
       <div className="absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-good/5 blur-3xl" />
 
       <div className="relative p-5">
-        {/* Label + badge */}
-        <div className="mb-3 flex items-center gap-2">
-          <span className="text-xs font-medium uppercase tracking-wider text-accent">
-            {active ? '🏌️ Active Trip' : '📍 Next Up'}
-          </span>
-          {active && <Badge variant="live">Live</Badge>}
+        {/* Label + badge + menu */}
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium uppercase tracking-wider text-accent">
+              {active ? '🏌️ Active Trip' : '📍 Next Up'}
+            </span>
+            {active && <Badge variant="live">Live</Badge>}
+          </div>
+          <TripCardMenu
+            onEdit={() => setShowEdit(true)}
+            onDelete={() => setShowDelete(true)}
+          />
         </div>
 
         {/* Trip name */}
@@ -132,6 +145,26 @@ export function NextUpHero({
         </Link>
       </div>
     </div>
+
+    {showEdit && (
+      <EditTripModal
+        tripId={tripId}
+        initialName={tripName}
+        initialDescription={description}
+        initialStartDate={startDate}
+        initialEndDate={endDate}
+        onClose={() => setShowEdit(false)}
+      />
+    )}
+
+    {showDelete && (
+      <DeleteTripDialog
+        tripId={tripId}
+        tripName={tripName}
+        onClose={() => setShowDelete(false)}
+      />
+    )}
+    </>
   )
 }
 

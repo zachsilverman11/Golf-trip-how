@@ -175,8 +175,8 @@ export default async function TripPage({ params }: TripPageProps) {
                     <EyeIcon />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-text-1">Spectator Link</p>
-                    <p className="text-xs text-text-2">Share for read-only leaderboard access</p>
+                    <p className="text-sm font-medium text-text-1">📎 Spectator Link</p>
+                    <p className="text-xs text-text-2">Share so others can follow the tournament live</p>
                   </div>
                 </div>
                 <SpectatorLinkCopyButton token={trip.spectator_token} />

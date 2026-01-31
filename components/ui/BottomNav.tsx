@@ -1,6 +1,8 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
@@ -23,6 +25,14 @@ export function BottomNav({
   onChange,
   className,
 }: BottomNavProps) {
+  const pathname = usePathname()
+  const [tappedItem, setTappedItem] = useState<string | null>(null)
+
+  // Clear tapped state when pathname changes (navigation completed)
+  useEffect(() => {
+    setTappedItem(null)
+  }, [pathname])
+
   return (
     <nav
       className={cn(
@@ -33,22 +43,38 @@ export function BottomNav({
       <div className="mx-auto flex max-w-content items-center justify-around">
         {items.map((item) => {
           const isActive = item.id === activeItem
+          const isTapped = tappedItem === item.id
           const content = (
             <>
-              <span className="h-6 w-6">{item.icon}</span>
+              <span className={cn('h-6 w-6 transition-transform duration-tap', isTapped && !isActive && 'scale-90')}>
+                {item.icon}
+              </span>
               <span className="text-xs font-medium">{item.label}</span>
+              {isTapped && !isActive && (
+                <span className="absolute bottom-1 left-1/2 h-0.5 w-4 -translate-x-1/2 rounded-full bg-accent/50 animate-pulse" />
+              )}
             </>
           )
 
-          const className = cn(
-            'flex min-h-row min-w-[64px] flex-col items-center justify-center gap-1 px-2 py-2 transition-colors duration-tap',
-            isActive ? 'text-accent' : 'text-text-2 hover:text-text-1'
+          const itemClassName = cn(
+            'relative flex min-h-row min-w-[64px] flex-col items-center justify-center gap-1 px-2 py-2 transition-colors duration-tap',
+            isActive ? 'text-accent' : 'text-text-2 hover:text-text-1',
+            isTapped && !isActive && 'text-accent/70'
           )
 
           // Use Link if href is provided, otherwise use button
           if (item.href) {
             return (
-              <Link key={item.id} href={item.href} className={className}>
+              <Link
+                key={item.id}
+                href={item.href}
+                className={itemClassName}
+                onClick={() => {
+                  if (!isActive) {
+                    setTappedItem(item.id)
+                  }
+                }}
+              >
                 {content}
               </Link>
             )
@@ -57,8 +83,11 @@ export function BottomNav({
           return (
             <button
               key={item.id}
-              onClick={() => onChange?.(item.id)}
-              className={className}
+              onClick={() => {
+                setTappedItem(item.id)
+                onChange?.(item.id)
+              }}
+              className={itemClassName}
             >
               {content}
             </button>

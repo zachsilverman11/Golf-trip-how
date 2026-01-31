@@ -96,6 +96,45 @@ export interface GroupActionResult {
 }
 
 // ============================================================================
+// Get Active (in-progress) Round for Trip
+// ============================================================================
+
+export async function getActiveRoundAction(tripId: string): Promise<{
+  roundId: string | null
+  error?: string
+}> {
+  const supabase = createClient()
+  const user = await getCurrentUser()
+
+  if (!user) {
+    return { roundId: null, error: 'Not authenticated' }
+  }
+
+  try {
+    const { data: rounds, error } = await supabase
+      .from('rounds')
+      .select('id')
+      .eq('trip_id', tripId)
+      .eq('status', 'in_progress')
+      .order('date', { ascending: false })
+      .limit(1)
+
+    if (error) {
+      console.error('Get active round error:', error)
+      return { roundId: null, error: error.message }
+    }
+
+    return { roundId: rounds && rounds.length > 0 ? rounds[0].id : null }
+  } catch (err) {
+    console.error('Get active round error:', err)
+    return {
+      roundId: null,
+      error: err instanceof Error ? err.message : 'Failed to check active round',
+    }
+  }
+}
+
+// ============================================================================
 // Get Rounds for Trip
 // ============================================================================
 

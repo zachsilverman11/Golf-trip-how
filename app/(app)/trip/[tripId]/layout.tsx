@@ -1,7 +1,9 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useParams, usePathname } from 'next/navigation'
 import { BottomNav, NavIcons } from '@/components/ui/BottomNav'
+import { getActiveRoundAction } from '@/lib/supabase/round-actions'
 
 export default function TripLayout({
   children,
@@ -11,6 +13,18 @@ export default function TripLayout({
   const params = useParams()
   const pathname = usePathname()
   const tripId = params.tripId as string
+  const [activeRoundId, setActiveRoundId] = useState<string | null>(null)
+
+  // Check for an active (in-progress) round
+  useEffect(() => {
+    let cancelled = false
+    getActiveRoundAction(tripId).then((result) => {
+      if (!cancelled) {
+        setActiveRoundId(result.roundId)
+      }
+    })
+    return () => { cancelled = true }
+  }, [tripId, pathname]) // re-check when navigating
 
   // Determine active nav item from pathname
   const getActiveItem = () => {
@@ -22,9 +36,13 @@ export default function TripLayout({
     return 'trip'
   }
 
+  const roundHref = activeRoundId
+    ? `/trip/${tripId}/round/${activeRoundId}/score`
+    : `/trip/${tripId}/round/new`
+
   const navItems = [
     { id: 'trip', label: 'Trip', icon: NavIcons.Trip, href: `/trip/${tripId}` },
-    { id: 'round', label: 'Round', icon: NavIcons.Round, href: `/trip/${tripId}/round/new` },
+    { id: 'round', label: 'Round', icon: NavIcons.Round, href: roundHref },
     { id: 'leaderboard', label: 'Board', icon: NavIcons.Leaderboard, href: `/trip/${tripId}/leaderboard` },
     { id: 'matches', label: 'Matches', icon: NavIcons.Matches, href: `/trip/${tripId}/matches` },
     { id: 'settle', label: 'Settle', icon: NavIcons.Settle, href: `/trip/${tripId}/settle` },

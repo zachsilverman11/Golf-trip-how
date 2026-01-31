@@ -1,153 +1,158 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { LayoutContainer, Card, Button, Badge } from '@/components/ui'
-import { getCoursesAction } from '@/lib/supabase/actions'
+import { LayoutContainer } from '@/components/ui/LayoutContainer'
+import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { BackButton } from '@/components/ui/BackButton'
+import { ApiSearchResult, ApiCourse, ApiTee, formatLocation } from '@/lib/api/types'
+import { searchCoursesAction, getCourseDetailsAction } from '@/lib/api/actions'
 
-export const dynamic = 'force-dynamic' // Always fetch fresh data
+export default function CoursesPage() {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<ApiSearchResult[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-export default async function CoursesPage() {
-  const { courses, error } = await getCoursesAction()
+  // Search courses with debounce
+  useEffect(() => {
+    if (query.length < 2) {
+      setResults([])
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setLoading(true)
+      setError(null)
+
+      try {
+        const { courses, error } = await searchCoursesAction(query)
+        if (error) {
+          setError(error)
+          setResults([])
+        } else {
+          setResults(courses)
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Search failed')
+        setResults([])
+      } finally {
+        setLoading(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [query])
 
   return (
-    <div className="min-h-screen bg-bg-0 py-8">
+    <div className="py-8">
       <LayoutContainer>
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="font-display text-2xl font-bold text-text-0">
-            Courses
-          </h1>
-          <Link href="/course/new">
-            <Button variant="primary">Add Course</Button>
-          </Link>
+        {/* Back button */}
+        <div className="mb-4">
+          <BackButton href="/trips" label="Back" />
         </div>
 
-        {/* Error State */}
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="font-display text-2xl font-bold text-text-0 mb-2">
+            Find a Course
+          </h1>
+          <p className="text-sm text-text-2">
+            Search for any golf course to add to your trip
+          </p>
+        </div>
+
+        {/* Search Input */}
+        <div className="relative mb-6">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-text-2">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search courses by name…"
+            autoFocus
+            className="w-full rounded-card border border-stroke bg-bg-2 py-4 pl-12 pr-4 text-text-0 placeholder:text-text-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent transition-colors"
+          />
+          {loading && (
+            <div className="absolute right-4 top-1/2 -translate-y-1/2">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+            </div>
+          )}
+        </div>
+
+        {/* Error */}
         {error && (
-          <Card className="p-6 text-center">
-            <p className="text-bad mb-4">{error}</p>
-            <p className="text-sm text-text-2">
-              Make sure Supabase is configured correctly.
-            </p>
+          <Card className="p-4 mb-4">
+            <p className="text-sm text-bad">{error}</p>
           </Card>
         )}
 
-        {/* Empty State */}
-        {!error && courses.length === 0 && (
-          <Card className="p-8 text-center">
-            <div className="h-16 w-16 rounded-full bg-bg-2 flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="h-8 w-8 text-text-2"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+        {/* Results */}
+        {results.length > 0 && (
+          <Card className="overflow-hidden p-0">
+            {results.slice(0, 10).map((course, index) => (
+              <Link
+                key={course.id}
+                href={`/course/new?courseId=${course.id}`}
+                className={`flex w-full flex-col gap-0.5 px-4 py-3 text-left transition-colors hover:bg-bg-2 active:scale-[0.99] ${
+                  index !== Math.min(results.length, 10) - 1
+                    ? 'border-b border-stroke/60'
+                    : ''
+                }`}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5"
-                />
+                <span className="font-medium text-text-0">
+                  {course.course_name || course.club_name}
+                </span>
+                {course.course_name &&
+                  course.club_name &&
+                  course.course_name !== course.club_name && (
+                    <span className="text-sm text-text-1">
+                      at {course.club_name}
+                    </span>
+                  )}
+                <span className="text-sm text-text-2">
+                  {formatLocation(course.location)}
+                </span>
+              </Link>
+            ))}
+          </Card>
+        )}
+
+        {/* Empty state before search */}
+        {query.length < 2 && results.length === 0 && (
+          <div className="py-12 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-bg-2">
+              <svg className="h-8 w-8 text-text-2" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" />
               </svg>
             </div>
-            <h2 className="font-display text-lg font-semibold text-text-0 mb-2">
-              No courses yet
-            </h2>
-            <p className="text-body text-text-2 mb-6">
-              Add your first course to get started.
+            <p className="text-text-2 mb-1">Type to search for a course</p>
+            <p className="text-xs text-text-2">
+              e.g., &quot;Bandon Dunes&quot; or &quot;Pebble Beach&quot;
             </p>
-            <Link href="/course/new">
-              <Button variant="primary">Add Course</Button>
-            </Link>
-          </Card>
+          </div>
         )}
 
-        {/* Course List */}
-        {!error && courses.length > 0 && (
-          <div className="flex flex-col gap-4">
-            {courses.map((course) => (
-              <Card key={course.id} className="p-0 overflow-hidden">
-                {/* Course Header */}
-                <div className="p-4 border-b border-stroke/60">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="font-display text-lg font-semibold text-text-0">
-                        {course.name}
-                      </h3>
-                      {course.location && (
-                        <p className="text-sm text-text-2">{course.location}</p>
-                      )}
-                    </div>
-                    <Badge variant={course.country === 'CA' ? 'default' : 'default'}>
-                      {course.country}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Tees */}
-                {course.tees && course.tees.length > 0 && (
-                  <div className="divide-y divide-stroke/40">
-                    {course.tees.map((tee) => (
-                      <div
-                        key={tee.id}
-                        className="flex items-center gap-4 px-4 py-3 hover:bg-bg-2/50 transition-colors"
-                      >
-                        {/* Tee Color Indicator */}
-                        <div
-                          className="h-3 w-3 rounded-full"
-                          style={{
-                            backgroundColor: tee.color || getTeeColor(tee.name),
-                          }}
-                        />
-
-                        {/* Tee Name */}
-                        <span className="flex-1 text-body font-medium text-text-0">
-                          {tee.name}
-                        </span>
-
-                        {/* Rating / Slope */}
-                        <span className="font-display text-sm tabular-nums text-text-1">
-                          {tee.rating} / {tee.slope}
-                        </span>
-
-                        {/* Par */}
-                        <span className="text-sm text-text-2 w-16 text-right">
-                          Par {tee.par}
-                        </span>
-
-                        {/* Yards */}
-                        {tee.yards && (
-                          <span className="text-sm text-text-2 w-20 text-right">
-                            {tee.yards.toLocaleString()} yd
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* No Tees */}
-                {(!course.tees || course.tees.length === 0) && (
-                  <div className="p-4 text-center text-sm text-text-2">
-                    No tees configured
-                  </div>
-                )}
-              </Card>
-            ))}
+        {/* No results */}
+        {query.length >= 2 && !loading && results.length === 0 && !error && (
+          <div className="py-8 text-center">
+            <p className="text-sm text-text-2 mb-2">
+              No courses found for &quot;{query}&quot;
+            </p>
+            <p className="text-xs text-text-2 mb-4">
+              Try searching by facility name (e.g., &quot;Bandon Dunes&quot; instead of &quot;Sheep Ranch&quot;)
+            </p>
+            <Link href="/course/new">
+              <Button variant="secondary">Add Course Manually</Button>
+            </Link>
           </div>
         )}
       </LayoutContainer>
     </div>
   )
-}
-
-// Helper to get a default color based on tee name
-function getTeeColor(name: string): string {
-  const lower = name.toLowerCase()
-  if (lower.includes('black') || lower.includes('tournament')) return '#1a1a1a'
-  if (lower.includes('blue') || lower.includes('championship')) return '#0066CC'
-  if (lower.includes('white')) return '#FFFFFF'
-  if (lower.includes('gold') || lower.includes('yellow')) return '#FFC857'
-  if (lower.includes('green')) return '#3CE6B0'
-  if (lower.includes('red')) return '#FF5C7A'
-  if (lower.includes('orange')) return '#FF8C42'
-  return '#7E8BB0' // default gray
 }

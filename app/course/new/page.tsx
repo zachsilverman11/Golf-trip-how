@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { LayoutContainer, Button } from '@/components/ui'
+import { BackButton } from '@/components/ui/BackButton'
 import {
   CourseSearch,
   TeeSelector,
@@ -85,11 +86,14 @@ export default function NewCoursePage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg-0 py-8">
+    <div className="py-8">
       <LayoutContainer>
         {/* Search Step */}
         {step === 'search' && (
           <div>
+            <div className="mb-4">
+              <BackButton href="/courses" label="Back to courses" />
+            </div>
             <h1 className="font-display text-2xl font-bold text-text-0 mb-6">
               Add Course
             </h1>
