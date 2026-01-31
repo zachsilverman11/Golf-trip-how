@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import { TripCardMenu } from './TripCardMenu'
 import { EditTripModal } from './EditTripModal'
 import { DeleteTripDialog } from './DeleteTripDialog'
+import { getTripStatus } from '@/lib/trip-utils'
 
 interface TripCardProps {
   id: string
@@ -47,22 +48,7 @@ function formatDateRange(start?: string | null, end?: string | null): string | n
   return `${startDate.toLocaleDateString('en-US', { ...options, year: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { ...options, year: 'numeric' })}`
 }
 
-export function getTripStatus(startDate?: string | null, endDate?: string | null): 'upcoming' | 'active' | 'past' | null {
-  if (!startDate) return null
-
-  const now = new Date()
-  now.setHours(0, 0, 0, 0)
-
-  const start = new Date(startDate)
-  start.setHours(0, 0, 0, 0)
-
-  const end = endDate ? new Date(endDate) : start
-  end.setHours(23, 59, 59, 999)
-
-  if (now < start) return 'upcoming'
-  if (now > end) return 'past'
-  return 'active'
-}
+export { getTripStatus } from '@/lib/trip-utils'
 
 export function TripCard({
   id,
