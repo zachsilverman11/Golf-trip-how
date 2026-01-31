@@ -8,6 +8,8 @@ interface PressButtonProps {
   matchId: string
   currentHole: number
   disabled?: boolean
+  matchLead?: number // Current match lead (negative = team is down)
+  holesRemaining?: number // Holes left to play
   onPressAdded?: () => void
   className?: string
 }
@@ -15,11 +17,17 @@ interface PressButtonProps {
 /**
  * One-tap press button with toast confirmation
  * No modal - just a quick tap to add a press
+ *
+ * When the team is down, the button becomes more prominent:
+ * - Larger size with "PRESS" text
+ * - Context line showing deficit and holes remaining
  */
 export function PressButton({
   matchId,
   currentHole,
   disabled,
+  matchLead,
+  holesRemaining,
   onPressAdded,
   className,
 }: PressButtonProps) {
@@ -57,22 +65,33 @@ export function PressButton({
     }
   }, [matchId, currentHole, isLoading, disabled, onPressAdded])
 
+  const isDown = matchLead !== undefined && matchLead < 0
+  const absLead = matchLead !== undefined ? Math.abs(matchLead) : 0
+
   return (
-    <div className="relative">
+    <div className="relative flex flex-col items-center">
       <button
         onClick={handlePress}
         disabled={isLoading || disabled}
         className={cn(
-          'px-2 py-1 text-xs font-bold rounded-full',
+          'font-bold rounded-full',
           'bg-accent/20 text-accent border border-accent/40',
           'hover:bg-accent/30 active:scale-95',
           'transition-all duration-150',
           'disabled:opacity-50 disabled:cursor-not-allowed',
+          isDown
+            ? 'px-3 py-1.5 text-sm min-h-button'
+            : 'px-2 py-1 text-xs',
           className
         )}
       >
-        {isLoading ? '...' : '+P'}
+        {isLoading ? '...' : isDown ? 'PRESS' : '+P'}
       </button>
+      {isDown && holesRemaining !== undefined && (
+        <span className="text-xs text-text-2 mt-0.5 whitespace-nowrap">
+          {absLead} DN • {holesRemaining} to play
+        </span>
+      )}
 
       {/* Toast notification */}
       {showToast && (
