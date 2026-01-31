@@ -253,17 +253,19 @@ export function computeHoleResults(
 }
 
 /**
- * Compute press-specific hole results (starting from a given hole)
+ * Compute press-specific hole results (starting from a given hole, ending at endingHole)
  */
 export function computePressHoleResults(
   holeResults: ComputedHoleResult[],
-  startingHole: number
+  startingHole: number,
+  endingHole: number = 18
 ): ComputedHoleResult[] {
   const pressResults: ComputedHoleResult[] = []
   let pressLead = 0
 
   for (const result of holeResults) {
     if (result.holeNumber < startingHole) continue
+    if (result.holeNumber > endingHole) break // Stop at ending hole
 
     // Adjust lead for press (reset from starting hole)
     if (result.winner === 'team_a') {
@@ -345,10 +347,11 @@ export function computeMatchState(
 
   // Compute press states
   const pressStates: PressState[] = presses.map((press, index) => {
-    const pressResults = computePressHoleResults(holeResults, press.starting_hole)
+    const endingHole = press.ending_hole ?? 18
+    const pressResults = computePressHoleResults(holeResults, press.starting_hole, endingHole)
     const completedPressResults = pressResults.filter((r) => r.winner !== null)
     const pressHolesPlayed = completedPressResults.length
-    const pressHolesRemaining = totalHoles - press.starting_hole + 1 - pressHolesPlayed
+    const pressHolesRemaining = endingHole - press.starting_hole + 1 - pressHolesPlayed
 
     const pressLead = completedPressResults.length > 0
       ? completedPressResults[completedPressResults.length - 1].cumulativeLead
@@ -379,6 +382,7 @@ export function computeMatchState(
       id: press.id,
       pressNumber: index + 1,
       startingHole: press.starting_hole,
+      endingHole,
       stakePerMan: press.stake_per_man,
       status: pressStatus,
       winner: pressWinner,
@@ -427,17 +431,18 @@ export function getHoleMatchInfo(
 ): HoleMatchInfo {
   // Count active bets (main match + active presses)
   const activePressCount = matchState.presses.filter(
-    (p) => p.startingHole <= currentHole && p.status === 'in_progress'
+    (p) => p.startingHole <= currentHole && p.endingHole >= currentHole && p.status === 'in_progress'
   ).length
 
   // Main match stake for this hole (per man)
   const mainMatchStake = matchState.isMatchClosed ? 0 : matchState.stakePerMan
 
-  // Active press stakes for this hole
+  // Active press stakes for this hole (must be within press range)
   const pressBreakdown = matchState.presses
     .filter(
       (p) =>
         p.startingHole <= currentHole &&
+        p.endingHole >= currentHole &&
         p.status === 'in_progress'
     )
     .map((p) => ({
@@ -464,7 +469,7 @@ export function getHoleMatchInfo(
       isMatchClosed: matchState.isMatchClosed,
     },
     pressStates: matchState.presses
-      .filter((p) => p.startingHole <= currentHole)
+      .filter((p) => p.startingHole <= currentHole && p.endingHole >= currentHole)
       .map((p) => ({
         pressNumber: p.pressNumber,
         lead: p.currentLead,

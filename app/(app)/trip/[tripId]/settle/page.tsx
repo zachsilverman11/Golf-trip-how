@@ -123,8 +123,8 @@ export default function SettlePage() {
         </h1>
       </div>
 
-      {/* War Totals (if war mode enabled and has data) */}
-      {warTotals && (warTotals.teamA.points > 0 || warTotals.teamB.points > 0) && (
+      {/* Team Competition Totals (if enabled and has data) */}
+      {warTotals && (warTotals.teamA.points > 0 || warTotals.teamB.points > 0 || (warTotals.rounds && warTotals.rounds.length > 0)) && (
         <WarTotalsCard totals={warTotals} className="mb-4" />
       )}
 

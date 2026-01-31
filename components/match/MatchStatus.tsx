@@ -5,21 +5,27 @@ import { cn } from '@/lib/utils'
 interface MatchStatusProps {
   lead: number // positive = up, negative = down
   label?: string // Optional label like "Main" or "status" (legacy)
+  dormie?: boolean // Show DORMIE badge instead of UP/DN
   size?: 'default' | 'large'
   className?: string
 }
 
 /**
- * Display match status badge: "2 UP", "1 DN", "A/S"
+ * Display match status badge: "2 UP", "1 DN", "A/S", or "DORMIE"
  */
 export function MatchStatus({
   lead,
   label,
+  dormie,
   size = 'default',
   className,
 }: MatchStatusProps) {
+  // Dormie variant: show DORMIE when dormie=true and lead !== 0
+  const isDormieDisplay = dormie && lead !== 0
+
   // Format the status text
   const getStatusText = () => {
+    if (isDormieDisplay) return 'DORMIE'
     if (lead === 0) return 'A/S'
     const absLead = Math.abs(lead)
     if (lead > 0) return `${absLead} UP`
@@ -28,6 +34,7 @@ export function MatchStatus({
 
   // Get variant based on lead
   const getVariant = () => {
+    if (isDormieDisplay) return 'dormie'
     if (lead > 0) return 'positive'
     if (lead < 0) return 'negative'
     return 'neutral'
@@ -40,6 +47,7 @@ export function MatchStatus({
     positive: 'bg-good/15 text-good border-good/30',
     negative: 'bg-bad/15 text-bad border-bad/30',
     neutral: 'bg-bg-2 text-text-1 border-stroke',
+    dormie: 'bg-gold/20 text-gold border-gold/40 animate-pulse',
   }
 
   const sizes = {
@@ -66,17 +74,19 @@ interface PressStatusProps {
   pressNumber: number
   lead: number
   startingHole?: number // Optional: show "P1 from 8" instead of just "P1"
+  endingHole?: number // Optional: show "→9" when not 18
   size?: 'default' | 'large'
   className?: string
 }
 
 /**
- * Display press status badge: "P1 from 8: 1 DN"
+ * Display press status badge: "P1 from 5 →9: 1 DN" or "P2 from 12: A/S"
  */
 export function PressStatus({
   pressNumber,
   lead,
   startingHole,
+  endingHole,
   size = 'default',
   className,
 }: PressStatusProps) {
@@ -107,8 +117,14 @@ export function PressStatus({
     large: 'px-3 py-1 text-sm font-medium',
   }
 
-  // Build label: "P1" or "P1 from 8"
-  const label = startingHole ? `P${pressNumber} from ${startingHole}` : `P${pressNumber}`
+  // Build label: "P1", "P1 from 8", or "P1 from 5 →9"
+  let label = `P${pressNumber}`
+  if (startingHole) {
+    label = `P${pressNumber} from ${startingHole}`
+    if (endingHole && endingHole < 18) {
+      label += ` →${endingHole}`
+    }
+  }
 
   return (
     <span

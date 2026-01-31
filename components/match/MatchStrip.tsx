@@ -8,11 +8,17 @@ import { PressButton } from './PressButton'
 import { formatMoney, calculateExposure } from '@/lib/match-utils'
 import type { MatchState } from '@/lib/supabase/match-types'
 
+interface Narrative {
+  text: string
+  intensity: string // 'high' | 'medium' | 'low'
+}
+
 interface MatchStripProps {
   matchState: MatchState
   currentHole: number
   tripId: string
   roundId: string
+  narratives?: Narrative[]
   onPressAdded?: () => void
   className?: string
 }
@@ -28,11 +34,30 @@ interface MatchStripProps {
  * Tap the strip to expand/collapse the breakdown.
  * Navigation to match details via the "View Details" link.
  */
+/**
+ * Get first name from a full name string
+ */
+function firstName(name: string): string {
+  return name.split(' ')[0]
+}
+
+/**
+ * Format team display names (first names only)
+ * e.g., "Zach & Dave" or just "Zach" for 1v1
+ */
+function formatTeamFirstNames(team: { player1: { name: string }; player2: { name: string } | null }): string {
+  if (team.player2) {
+    return `${firstName(team.player1.name)} & ${firstName(team.player2.name)}`
+  }
+  return firstName(team.player1.name)
+}
+
 export function MatchStrip({
   matchState,
   currentHole,
   tripId,
   roundId,
+  narratives,
   onPressAdded,
   className,
 }: MatchStripProps) {
@@ -56,9 +81,14 @@ export function MatchStrip({
 
     // Add active press stakes (each press also has stake_per_man)
     for (const press of matchState.presses) {
-      if (press.startingHole <= currentHole && press.status === 'in_progress') {
+      if (
+        press.startingHole <= currentHole &&
+        press.endingHole >= currentHole &&
+        press.status === 'in_progress'
+      ) {
+        const endLabel = press.endingHole < 18 ? `, ends ${press.endingHole}` : ''
         items.push({
-          label: `Press ${press.pressNumber} (from ${press.startingHole})`,
+          label: `Press ${press.pressNumber} (from ${press.startingHole}${endLabel})`,
           amount: press.stakePerMan,
         })
         total += press.stakePerMan
@@ -73,9 +103,12 @@ export function MatchStrip({
     return calculateExposure(matchState)
   }, [matchState])
 
-  // Active presses for this hole
+  // Active presses for this hole (must be within press range)
   const activePresses = matchState.presses.filter(
-    (p) => p.startingHole <= currentHole && p.status === 'in_progress'
+    (p) =>
+      p.startingHole <= currentHole &&
+      p.endingHole >= currentHole &&
+      p.status === 'in_progress'
   )
 
   // Can add press only if match is still in progress
@@ -98,6 +131,56 @@ export function MatchStrip({
         className
       )}
     >
+      {/* Match context bar — teams, lead, dormie */}
+      {!matchState.isMatchClosed && (
+        <div className="mb-3 pb-3 border-b border-stroke/50">
+          {/* Team names */}
+          <div className="flex items-center justify-between text-xs text-text-2 mb-2">
+            <span>{formatTeamFirstNames(matchState.teamA)}</span>
+            <span>vs</span>
+            <span>{formatTeamFirstNames(matchState.teamB)}</span>
+          </div>
+
+          {/* Lead status hero + holes remaining */}
+          <div className="flex items-center justify-center gap-3">
+            {matchState.currentLead === 0 ? (
+              <span className="font-display text-xl font-bold text-text-1">A/S</span>
+            ) : (
+              <span
+                className={cn(
+                  'font-display text-xl font-bold',
+                  matchState.currentLead > 0 ? 'text-good' : 'text-bad'
+                )}
+              >
+                {Math.abs(matchState.currentLead)} {matchState.currentLead > 0 ? 'UP' : 'DN'}
+              </span>
+            )}
+            <span className="text-text-2 text-sm">
+              {matchState.holesRemaining} to play
+            </span>
+          </div>
+
+          {/* Dormie badge */}
+          {matchState.isDormie && (
+            <div className="flex justify-center mt-2">
+              <span className="inline-flex items-center px-3 py-1 rounded-full border animate-pulse bg-gold/20 text-gold border-gold/40 text-xs font-bold uppercase tracking-wider">
+                Dormie
+              </span>
+            </div>
+          )}
+
+          {/* Match closing context */}
+          {matchState.currentLead !== 0 &&
+            Math.abs(matchState.currentLead) === matchState.holesRemaining && (
+              <div className="text-center mt-2">
+                <span className="text-gold text-xs font-medium">
+                  This hole could close it
+                </span>
+              </div>
+            )}
+        </div>
+      )}
+
       {/* Hero: This hole value per man */}
       <div className="text-center mb-3">
         <div className="text-text-2 text-xs uppercase tracking-wider mb-1">
@@ -139,15 +222,16 @@ export function MatchStrip({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Main match status */}
-          <MatchStatus lead={matchState.currentLead} label="Main" />
+          <MatchStatus lead={matchState.currentLead} label="Main" dormie={matchState.isDormie} />
 
-          {/* Press statuses with origin hole */}
+          {/* Press statuses with origin hole and ending hole */}
           {activePresses.map((press) => (
             <PressStatus
               key={press.id}
               pressNumber={press.pressNumber}
               lead={press.currentLead}
               startingHole={press.startingHole}
+              endingHole={press.endingHole}
             />
           ))}
         </div>
@@ -157,10 +241,31 @@ export function MatchStrip({
           <PressButton
             matchId={matchState.matchId}
             currentHole={currentHole}
+            matchLead={matchState.currentLead}
+            holesRemaining={matchState.holesRemaining}
             onPressAdded={onPressAdded}
           />
         )}
       </div>
+
+      {/* Narrative slot */}
+      {narratives && narratives.length > 0 && (
+        <div className="mt-2 space-y-0.5">
+          {narratives.slice(0, 2).map((narrative, idx) => (
+            <p
+              key={idx}
+              className={cn(
+                'text-xs italic',
+                narrative.intensity === 'high' && 'text-gold',
+                narrative.intensity === 'medium' && 'text-text-1',
+                (narrative.intensity === 'low' || (narrative.intensity !== 'high' && narrative.intensity !== 'medium')) && 'text-text-2'
+              )}
+            >
+              {narrative.text}
+            </p>
+          ))}
+        </div>
+      )}
 
       {/* Total exposure (per man) */}
       <div className="mt-3 flex items-center justify-between text-xs">
@@ -208,7 +313,11 @@ export function MatchStripCompact({
     if (matchState.isMatchClosed) return 0
     let total = matchState.stakePerMan
     for (const press of matchState.presses) {
-      if (press.startingHole <= currentHole && press.status === 'in_progress') {
+      if (
+        press.startingHole <= currentHole &&
+        press.endingHole >= currentHole &&
+        press.status === 'in_progress'
+      ) {
         total += press.stakePerMan
       }
     }

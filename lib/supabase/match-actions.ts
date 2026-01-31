@@ -158,6 +158,7 @@ export async function addPressAction(input: AddPressInput): Promise<PressActionR
       .insert({
         match_id: input.matchId,
         starting_hole: input.startingHole,
+        ending_hole: input.endingHole || 18,
         stake_per_man: match.stake_per_man, // Copy current stake
       })
       .select('*')
@@ -336,7 +337,10 @@ export async function syncMatchStateAction(matchId: string): Promise<MatchAction
 
     // Update presses
     for (const press of match.presses || []) {
-      const pressResults = holeResults.filter((r) => r.holeNumber >= press.starting_hole)
+      const pressEndingHole = press.ending_hole ?? 18
+      const pressResults = holeResults.filter(
+        (r) => r.holeNumber >= press.starting_hole && r.holeNumber <= pressEndingHole
+      )
       const completedPressResults = pressResults.filter((r) => r.winner !== null)
 
       let pressLead = 0
@@ -346,7 +350,7 @@ export async function syncMatchStateAction(matchId: string): Promise<MatchAction
       }
 
       const pressHolesPlayed = completedPressResults.length
-      const pressHolesRemaining = 18 - press.starting_hole + 1 - pressHolesPlayed
+      const pressHolesRemaining = pressEndingHole - press.starting_hole + 1 - pressHolesPlayed
       const isPressClosed = Math.abs(pressLead) > pressHolesRemaining
 
       let pressStatus = press.status

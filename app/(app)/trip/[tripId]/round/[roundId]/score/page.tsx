@@ -1,21 +1,25 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
-import { Badge } from '@/components/ui/Badge'
+import { LiveIndicator } from '@/components/ui/LiveIndicator'
 import { Button } from '@/components/ui/Button'
 import { GroupScorer } from '@/components/scoring/GroupScorer'
 import { MatchStrip } from '@/components/match'
 import { FormatStrip } from '@/components/scoring/FormatStrip'
 import { getRoundAction, updateRoundAction } from '@/lib/supabase/round-actions'
+import { getTripAction } from '@/lib/supabase/trip-actions'
 import { getRoundScoresMapAction, upsertScoreAction } from '@/lib/supabase/score-actions'
 import { getMatchStateAction, syncMatchStateAction } from '@/lib/supabase/match-actions'
 import { getFormatStateAction } from '@/lib/supabase/format-actions'
+import { useRealtimeScores } from '@/hooks/useRealtimeScores'
 import type { DbRoundWithGroups, DbHole } from '@/lib/supabase/types'
 import type { MatchState } from '@/lib/supabase/match-types'
 import type { FormatState } from '@/lib/format-types'
+import { generateNarratives } from '@/lib/narrative-utils'
+import { CompetitionBadge } from '@/components/scoring/CompetitionBadge'
 
 interface Player {
   id: string
@@ -41,10 +45,43 @@ export default function ScorePage() {
   const [matchState, setMatchState] = useState<MatchState | null>(null)
   const [formatState, setFormatState] = useState<FormatState | null>(null)
   const [formatError, setFormatError] = useState<string | null>(null)
+  const [competitionName, setCompetitionName] = useState<string | null>(null)
   const [currentHole, setCurrentHole] = useState(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [liveToast, setLiveToast] = useState(false)
+  const liveToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // --- Realtime data refresh ---
+  const refreshData = useCallback(async () => {
+    const [scoresResult, matchResult] = await Promise.all([
+      getRoundScoresMapAction(roundId),
+      getMatchStateAction(roundId),
+    ])
+    setScores(scoresResult.scores)
+    if (matchResult.success && matchResult.state) {
+      setMatchState(matchResult.state)
+    }
+    // Also refresh format state if applicable
+    if (round?.format === 'points_hilo') {
+      const formatResult = await getFormatStateAction(roundId)
+      if (formatResult.formatState) {
+        setFormatState(formatResult.formatState)
+      }
+    }
+    // Show a subtle toast for remote updates
+    setLiveToast(true)
+    if (liveToastTimer.current) clearTimeout(liveToastTimer.current)
+    liveToastTimer.current = setTimeout(() => setLiveToast(false), 2000)
+  }, [roundId, round?.format])
+
+  const { isConnected, markLocalSave } = useRealtimeScores({
+    roundId,
+    onScoreChange: refreshData,
+    onMatchChange: refreshData,
+    enabled: !loading && !!round,
+  })
 
   // Load round, scores, and match
   useEffect(() => {
@@ -93,6 +130,14 @@ export default function ScorePage() {
         }
       }
 
+      // Check if this round counts toward team competition
+      if (format === 'match_play' || format === 'points_hilo') {
+        const tripResult = await getTripAction(tripId)
+        if (tripResult.trip?.war_enabled) {
+          setCompetitionName((tripResult.trip as any).competition_name || 'The Cup')
+        }
+      }
+
       setLoading(false)
     }
 
@@ -127,6 +172,20 @@ export default function ScorePage() {
     }
   }, [roundId, round])
 
+  // Generate narratives from match state
+  const narratives = useMemo(() => {
+    if (!matchState) return []
+    const teamANames = [
+      matchState.teamA.player1.name,
+      matchState.teamA.player2?.name
+    ].filter(Boolean) as string[]
+    const teamBNames = [
+      matchState.teamB.player1.name,
+      matchState.teamB.player2?.name
+    ].filter(Boolean) as string[]
+    return generateNarratives(matchState.holeResults, matchState, teamANames, teamBNames)
+  }, [matchState])
+
   // Extract players from all groups
   const players: Player[] = round?.groups?.flatMap((group) =>
     group.group_players?.map((gp) => ({
@@ -146,6 +205,19 @@ export default function ScorePage() {
       yards: h.yards,
     }))
 
+  // Auto-advance to first incomplete hole
+  useEffect(() => {
+    if (!round || !players.length || !Object.keys(scores).length) return
+    const totalHoles = (round.tees?.holes || []).length || 18
+    for (let h = 1; h <= totalHoles; h++) {
+      const allScored = players.every(p => scores[p.id]?.[h] != null)
+      if (!allScored) {
+        setCurrentHole(h)
+        break
+      }
+    }
+  }, [round, players.length, Object.keys(scores).length]) // Only on initial load
+
   // Handle score change with optimistic update and save
   const handleScoreChange = useCallback(async (
     playerId: string,
@@ -154,6 +226,9 @@ export default function ScorePage() {
   ) => {
     // Track current hole
     setCurrentHole(holeNumber)
+
+    // Mark local save so realtime ignores the echo
+    markLocalSave()
 
     // Optimistic update
     setScores((prev) => ({
@@ -189,7 +264,7 @@ export default function ScorePage() {
     }
 
     setSaving(false)
-  }, [roundId, matchState, formatState, refreshMatchState, refreshFormatState])
+  }, [roundId, matchState, formatState, refreshMatchState, refreshFormatState, markLocalSave])
 
   // Handle round completion
   const handleComplete = async () => {
@@ -247,9 +322,21 @@ export default function ScorePage() {
           {saving && (
             <span className="text-xs text-text-2">Saving...</span>
           )}
-          <Badge variant="live">Live</Badge>
+          <LiveIndicator isConnected={isConnected} />
         </div>
       </div>
+
+      {/* Competition Badge */}
+      {competitionName && (
+        <CompetitionBadge competitionName={competitionName} className="mb-3" />
+      )}
+
+      {/* Live update toast */}
+      {liveToast && (
+        <div className="mb-2 text-center text-xs text-good/80 animate-pulse">
+          Scores updated
+        </div>
+      )}
 
       {/* Format Strip (for Points Hi/Lo with teams configured) */}
       {formatState && (
@@ -289,6 +376,7 @@ export default function ScorePage() {
           tripId={tripId}
           roundId={roundId}
           onPressAdded={refreshMatchState}
+          narratives={narratives.map(n => ({ text: n.text, intensity: n.intensity }))}
           className="mb-4"
         />
       )}
