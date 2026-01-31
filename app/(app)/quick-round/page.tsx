@@ -8,40 +8,26 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { PlayerEntry } from '@/components/quick-round/PlayerEntry'
 import { QuickRoundTeams } from '@/components/quick-round/QuickRoundTeams'
+import { WizardStep } from '@/components/quick-round/WizardStep'
 import { CourseSelector } from '@/components/round/CourseSelector'
 import { RoundFormatSelector, type RoundFormat } from '@/components/round/RoundFormatSelector'
 import { createQuickRoundAction } from '@/lib/supabase/quick-round-actions'
 import { useQuickRoundDraft, type QuickRoundPlayer } from '@/hooks/useQuickRoundDraft'
 
-/**
- * Determine if teams UI should be shown based on format and player count
- */
+// ── Helpers ──────────────────────────────────────────────
+
 function shouldShowTeams(format: RoundFormat, playerCount: number): boolean {
-  if (format === 'points_hilo') {
-    return playerCount === 4
-  }
-  if (format === 'match_play') {
-    return playerCount === 4  // 2-player match play is 1v1, no teams needed
-  }
+  if (format === 'points_hilo') return playerCount === 4
+  if (format === 'match_play') return playerCount === 4
   return false
 }
 
-/**
- * Determine if teams are required for submission
- */
 function teamsRequired(format: RoundFormat, playerCount: number): boolean {
-  if (format === 'points_hilo') {
-    return true  // Always requires teams (and 4 players)
-  }
-  if (format === 'match_play' && playerCount === 4) {
-    return true  // 4-player match play requires teams (2v2)
-  }
+  if (format === 'points_hilo') return true
+  if (format === 'match_play' && playerCount === 4) return true
   return false
 }
 
-/**
- * Get player count validation message for format
- */
 function getPlayerCountError(format: RoundFormat, playerCount: number): string | null {
   if (format === 'match_play') {
     if (playerCount !== 2 && playerCount !== 4 && playerCount > 0) {
@@ -56,14 +42,46 @@ function getPlayerCountError(format: RoundFormat, playerCount: number): string |
   return null
 }
 
+const FORMAT_LABELS: Record<RoundFormat, string> = {
+  stroke_play: 'Stroke Play',
+  match_play: 'Match Play',
+  points_hilo: 'Points Hi/Lo',
+  stableford: 'Stableford',
+}
+
+// ── Component ────────────────────────────────────────────
+
 export default function QuickRoundPage() {
   const router = useRouter()
   const { draft, isHydrated, updateDraft, clearDraft } = useQuickRoundDraft()
-  const submitRef = useRef(false)  // Prevent double-submit
+  const submitRef = useRef(false)
 
-  // UI state (not persisted)
+  // Wizard state
+  const [activeStep, setActiveStep] = useState(1)
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set())
+
+  // UI state
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // ── Step completion logic ──
+
+  const completeStep = (step: number) => {
+    setCompletedSteps(prev => new Set([...prev, step]))
+    // Auto-advance to the next uncompleted step
+    if (step < 3) {
+      setActiveStep(step + 1)
+    } else {
+      // After step 3, collapse everything — Go section is always visible
+      setActiveStep(0)
+    }
+  }
+
+  const expandStep = (step: number) => {
+    setActiveStep(step)
+  }
+
+  // ── Player actions ──
 
   const addPlayer = (name: string, handicap: number | null) => {
     const newPlayer: QuickRoundPlayer = {
@@ -78,27 +96,49 @@ export default function QuickRoundPage() {
     updateDraft({ players: draft.players.filter((p) => p.id !== id) })
   }
 
+  // ── Summaries ──
+
+  const playersSummary = draft.players.length > 0
+    ? `${draft.players.length} player${draft.players.length !== 1 ? 's' : ''}: ${draft.players.map(p => p.name).join(', ')}`
+    : undefined
+
+  const formatSummary = `${FORMAT_LABELS[draft.format]} · ${draft.scoringBasis === 'net' ? 'Net' : 'Gross'}`
+
+  const courseSummary = draft.courseDisplayName
+    ? `${draft.courseDisplayName}${draft.teeName ? ` — ${draft.teeName}` : ''}`
+    : 'No course selected'
+
+  // ── Validation ──
+
+  const playerCountError = getPlayerCountError(draft.format, draft.players.length)
+  const hasValidPlayerCount = draft.players.length > 0 && !playerCountError
+  const needsTeams = teamsRequired(draft.format, draft.players.length)
+  const hasValidTeams = !needsTeams || (
+    Object.values(draft.teamAssignments).filter(t => t === 1).length === 2 &&
+    Object.values(draft.teamAssignments).filter(t => t === 2).length === 2
+  )
+  const isValid = hasValidPlayerCount && hasValidTeams
+
+  const step1Complete = completedSteps.has(1)
+  const step2Complete = completedSteps.has(2)
+  const showTeamsUI = shouldShowTeams(draft.format, draft.players.length)
+
+  // ── Submit ──
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    // Prevent double-submit
-    if (submitRef.current || submitting) {
-      return
-    }
+    if (submitRef.current || submitting) return
 
     if (draft.players.length === 0) {
       setError('Add at least one player')
       return
     }
 
-    // Format-specific validation
-    const playerCountError = getPlayerCountError(draft.format, draft.players.length)
     if (playerCountError) {
       setError(playerCountError)
       return
     }
 
-    // Team validation for formats that require it
     if (teamsRequired(draft.format, draft.players.length)) {
       const team1Count = Object.values(draft.teamAssignments).filter(t => t === 1).length
       const team2Count = Object.values(draft.teamAssignments).filter(t => t === 2).length
@@ -112,8 +152,6 @@ export default function QuickRoundPage() {
     setSubmitting(true)
     setError(null)
 
-    // Convert team assignments from draft player IDs to array indices
-    // This maps { "draft-uuid-1": 1, "draft-uuid-2": 2, ... } to { "0": 1, "1": 2, ... }
     const teamAssignmentsByIndex = teamsRequired(draft.format, draft.players.length)
       ? Object.fromEntries(
           draft.players.map((player, idx) => [
@@ -134,7 +172,6 @@ export default function QuickRoundPage() {
     })
 
     if (result.success && result.tripId && result.roundId) {
-      // Clear draft only after successful creation
       clearDraft()
       if (draft.startImmediately) {
         router.push(`/trip/${result.tripId}/round/${result.roundId}/score`)
@@ -148,17 +185,8 @@ export default function QuickRoundPage() {
     }
   }
 
-  // Calculate validity
-  const playerCountError = getPlayerCountError(draft.format, draft.players.length)
-  const hasValidPlayerCount = draft.players.length > 0 && !playerCountError
-  const needsTeams = teamsRequired(draft.format, draft.players.length)
-  const hasValidTeams = !needsTeams || (
-    Object.values(draft.teamAssignments).filter(t => t === 1).length === 2 &&
-    Object.values(draft.teamAssignments).filter(t => t === 2).length === 2
-  )
-  const isValid = hasValidPlayerCount && hasValidTeams
+  // ── Loading skeleton ──
 
-  // Show skeleton while hydrating from localStorage
   if (!isHydrated) {
     return (
       <LayoutContainer className="py-6">
@@ -170,24 +198,18 @@ export default function QuickRoundPage() {
             <BackIcon />
             Back to trips
           </Link>
-          <h1 className="font-display text-2xl font-bold text-text-0">
-            Quick Round
-          </h1>
-          <p className="text-sm text-text-2">
-            Start a round in seconds
-          </p>
+          <h1 className="font-display text-2xl font-bold text-text-0">Quick Round</h1>
+          <p className="text-sm text-text-2">Start a round in seconds</p>
         </div>
-        <Card className="p-4 mb-4">
+        <Card className="p-4 mb-3">
           <div className="h-32 animate-pulse bg-bg-2 rounded-card-sm" />
         </Card>
-        <Card className="p-4 mb-4">
+        <Card className="p-4 mb-3">
           <div className="h-24 animate-pulse bg-bg-2 rounded-card-sm" />
         </Card>
       </LayoutContainer>
     )
   }
-
-  const showTeamsUI = shouldShowTeams(draft.format, draft.players.length)
 
   return (
     <LayoutContainer className="py-6">
@@ -200,140 +222,196 @@ export default function QuickRoundPage() {
           <BackIcon />
           Back to trips
         </Link>
-        <h1 className="font-display text-2xl font-bold text-text-0">
-          Quick Round
-        </h1>
-        <p className="text-sm text-text-2">
-          Start a round in seconds
-        </p>
+        <h1 className="font-display text-2xl font-bold text-text-0">Quick Round</h1>
+        <p className="text-sm text-text-2">Start a round in seconds</p>
       </div>
 
       <form onSubmit={handleSubmit}>
-        {/* Players */}
-        <Card className="p-4 mb-4">
-          <PlayerEntry
-            players={draft.players}
-            onAddPlayer={addPlayer}
-            onRemovePlayer={removePlayer}
-          />
-          {/* Player count hint for team formats */}
-          {(draft.format === 'match_play' || draft.format === 'points_hilo') && draft.players.length > 0 && draft.players.length < 4 && (
-            <p className="mt-2 text-xs text-text-2">
-              {draft.format === 'match_play'
-                ? `Add ${draft.players.length === 1 ? '1 more player for 1v1' : `${4 - draft.players.length} more for 2v2`}`
-                : `Add ${4 - draft.players.length} more player${4 - draft.players.length > 1 ? 's' : ''} for Points Hi/Lo`
-              }
-            </p>
-          )}
-        </Card>
-
-        {/* Teams (conditionally shown) */}
-        {showTeamsUI && (
-          <Card className="p-4 mb-4">
-            <QuickRoundTeams
+        <div className="space-y-3">
+          {/* ── Step 1: Players ── */}
+          <WizardStep
+            step={1}
+            title="Players"
+            summary={playersSummary}
+            isActive={activeStep === 1}
+            isComplete={step1Complete}
+            onExpand={() => expandStep(1)}
+          >
+            <PlayerEntry
               players={draft.players}
-              teamAssignments={draft.teamAssignments}
-              onTeamAssignmentsChange={(assignments) => updateDraft({ teamAssignments: assignments })}
+              onAddPlayer={addPlayer}
+              onRemovePlayer={removePlayer}
             />
+            {/* Player count hint for team formats */}
+            {(draft.format === 'match_play' || draft.format === 'points_hilo') && draft.players.length > 0 && draft.players.length < 4 && (
+              <p className="mt-2 text-xs text-text-2">
+                {draft.format === 'match_play'
+                  ? `Add ${draft.players.length === 1 ? '1 more player for 1v1' : `${4 - draft.players.length} more for 2v2`}`
+                  : `Add ${4 - draft.players.length} more player${4 - draft.players.length > 1 ? 's' : ''} for Points Hi/Lo`
+                }
+              </p>
+            )}
+            {draft.players.length > 0 && (
+              <Button
+                type="button"
+                size="default"
+                className="w-full mt-4"
+                onClick={() => completeStep(1)}
+              >
+                Next
+              </Button>
+            )}
+          </WizardStep>
+
+          {/* ── Step 2: Format ── */}
+          <WizardStep
+            step={2}
+            title="Format"
+            summary={step2Complete ? formatSummary : undefined}
+            isActive={activeStep === 2}
+            isComplete={step2Complete}
+            onExpand={() => expandStep(2)}
+          >
+            <RoundFormatSelector
+              value={draft.format}
+              onChange={(format) => updateDraft({ format })}
+            />
+
+            <div className="mt-4">
+              <label className="mb-2 block text-sm font-medium text-text-1">
+                Scoring Basis
+              </label>
+              <select
+                value={draft.scoringBasis}
+                onChange={(e) => updateDraft({ scoringBasis: e.target.value as 'gross' | 'net' })}
+                className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              >
+                <option value="net">Net (Handicap)</option>
+                <option value="gross">Gross</option>
+              </select>
+            </div>
+
+            {/* Teams UI inline if applicable */}
+            {showTeamsUI && (
+              <div className="mt-4">
+                <QuickRoundTeams
+                  players={draft.players}
+                  teamAssignments={draft.teamAssignments}
+                  onTeamAssignmentsChange={(assignments) => updateDraft({ teamAssignments: assignments })}
+                />
+              </div>
+            )}
+
+            {playerCountError && (
+              <div className="mt-3 rounded-card-sm bg-warning/10 p-3 text-warning text-sm">
+                {playerCountError}
+              </div>
+            )}
+
+            <Button
+              type="button"
+              size="default"
+              className="w-full mt-4"
+              disabled={!!playerCountError || (needsTeams && !hasValidTeams)}
+              onClick={() => completeStep(2)}
+            >
+              Next
+            </Button>
+          </WizardStep>
+
+          {/* ── Step 3: Course (optional) ── */}
+          <WizardStep
+            step={3}
+            title="Course"
+            summary={step2Complete || completedSteps.has(3) ? courseSummary : undefined}
+            isActive={activeStep === 3}
+            isComplete={completedSteps.has(3)}
+            optional
+            onExpand={() => expandStep(3)}
+          >
+            <CourseSelector
+              selectedTeeId={draft.teeId}
+              initialCourseInfo={
+                draft.courseDisplayName && draft.teeName
+                  ? { name: draft.courseDisplayName, teeName: draft.teeName }
+                  : null
+              }
+              onTeeSelected={(teeId, courseName, teeName) => {
+                updateDraft({
+                  teeId,
+                  courseDisplayName: courseName,
+                  teeName,
+                })
+              }}
+            />
+            <Button
+              type="button"
+              variant={draft.teeId ? 'primary' : 'secondary'}
+              size="default"
+              className="w-full mt-4"
+              onClick={() => completeStep(3)}
+            >
+              {draft.teeId ? 'Next' : 'Skip — No Course'}
+            </Button>
+          </WizardStep>
+        </div>
+
+        {/* ── Step 4: Go (always visible once Step 1 done) ── */}
+        {step1Complete && (
+          <Card className="mt-6 p-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-bg-0 text-sm font-bold">
+                4
+              </div>
+              <span className="font-display font-bold text-sm text-text-0">Go!</span>
+            </div>
+
+            {/* Tee time */}
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-medium text-text-1">
+                Tee Time <span className="text-text-2 font-normal">(optional)</span>
+              </label>
+              <input
+                type="time"
+                value={draft.teeTime || ''}
+                onChange={(e) => updateDraft({ teeTime: e.target.value || null })}
+                className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+            </div>
+
+            {/* Start immediately toggle */}
+            <label className="flex items-center gap-3 cursor-pointer mb-4">
+              <input
+                type="checkbox"
+                checked={draft.startImmediately}
+                onChange={(e) => updateDraft({ startImmediately: e.target.checked })}
+                className="h-5 w-5 rounded border-stroke bg-bg-2 text-accent focus:ring-accent focus:ring-offset-bg-0"
+              />
+              <div>
+                <p className="font-medium text-text-0 text-sm">Start scoring immediately</p>
+                <p className="text-xs text-text-2">Jump straight to the scorecard</p>
+              </div>
+            </label>
+
+            {/* Error */}
+            {error && (
+              <div className="mb-4 rounded-card-sm bg-bad/10 p-3 text-bad text-sm">
+                {error}
+              </div>
+            )}
+
+            {/* Submit button */}
+            <Button
+              type="submit"
+              size="large"
+              loading={submitting}
+              disabled={submitting || !isValid}
+              className="w-full"
+            >
+              {draft.startImmediately ? 'Start Round' : 'Create Round'}
+            </Button>
           </Card>
         )}
-
-        {/* Course (Optional) */}
-        <Card className="p-4 mb-4">
-          <h2 className="mb-4 font-display text-lg font-bold text-text-0">
-            Course <span className="text-text-2 font-normal text-sm">(optional)</span>
-          </h2>
-          <CourseSelector
-            selectedTeeId={draft.teeId}
-            initialCourseInfo={
-              draft.courseDisplayName && draft.teeName
-                ? { name: draft.courseDisplayName, teeName: draft.teeName }
-                : null
-            }
-            onTeeSelected={(teeId, courseName, teeName) => {
-              // Atomic update - all course fields in one call
-              updateDraft({
-                teeId,
-                courseDisplayName: courseName,
-                teeName,
-              })
-            }}
-          />
-        </Card>
-
-        {/* Format & Settings */}
-        <Card className="p-4 mb-4">
-          <RoundFormatSelector
-            value={draft.format}
-            onChange={(format) => updateDraft({ format })}
-          />
-
-          <div className="mt-4">
-            <label className="mb-2 block text-sm font-medium text-text-1">
-              Scoring Basis
-            </label>
-            <select
-              value={draft.scoringBasis}
-              onChange={(e) => updateDraft({ scoringBasis: e.target.value as 'gross' | 'net' })}
-              className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-            >
-              <option value="net">Net (Handicap)</option>
-              <option value="gross">Gross</option>
-            </select>
-          </div>
-
-          <div className="mt-4">
-            <label className="mb-2 block text-sm font-medium text-text-1">
-              Tee Time <span className="text-text-2 font-normal">(optional)</span>
-            </label>
-            <input
-              type="time"
-              value={draft.teeTime || ''}
-              onChange={(e) => updateDraft({ teeTime: e.target.value || null })}
-              className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-            />
-          </div>
-        </Card>
-
-        {/* Start immediately checkbox */}
-        <Card className="p-4 mb-4">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={draft.startImmediately}
-              onChange={(e) => updateDraft({ startImmediately: e.target.checked })}
-              className="h-5 w-5 rounded border-stroke bg-bg-2 text-accent focus:ring-accent focus:ring-offset-bg-0"
-            />
-            <div>
-              <p className="font-medium text-text-0">Start scoring immediately</p>
-              <p className="text-sm text-text-2">Jump straight to the scorecard after creating</p>
-            </div>
-          </label>
-        </Card>
-
-        {/* Validation/error messages */}
-        {playerCountError && (
-          <div className="mb-4 rounded-card bg-warning/10 p-4 text-warning text-sm">
-            {playerCountError}
-          </div>
-        )}
-
-        {error && (
-          <div className="mb-4 rounded-card bg-bad/10 p-4 text-bad">
-            {error}
-          </div>
-        )}
-
-        {/* Submit */}
-        <Button
-          type="submit"
-          size="large"
-          loading={submitting}
-          disabled={submitting || !isValid}
-          className="w-full"
-        >
-          {draft.startImmediately ? 'Start Round' : 'Create Round'}
-        </Button>
       </form>
     </LayoutContainer>
   )

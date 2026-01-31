@@ -74,18 +74,14 @@ export function useQuickRoundDraft() {
   const [isHydrated, setIsHydrated] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Hydrate from localStorage on mount
+  // Clear stale drafts on mount — always start fresh
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        // Merge with defaults to ensure all fields exist
-        setDraft(prev => ({ ...prev, ...parsed }))
-      }
+      localStorage.removeItem(STORAGE_KEY)
     } catch (err) {
-      console.error('Failed to parse draft:', err)
+      // ignore
     }
+    setDraft(defaultDraft)
     setIsHydrated(true)
   }, [])
 
