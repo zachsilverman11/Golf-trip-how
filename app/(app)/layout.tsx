@@ -10,7 +10,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-screen flex-col bg-bg-0">
-      <div className="flex-1 pb-16">
+      <div className="flex-1">
         {children}
       </div>
     </div>

@@ -50,9 +50,9 @@ export default function TripLayout({
   ]
 
   return (
-    <>
+    <div className="pb-16">
       {children}
       <BottomNav items={navItems} activeItem={getActiveItem()} />
-    </>
+    </div>
   )
 }

@@ -149,8 +149,6 @@ export default async function TripsPage() {
         </>
       )}
 
-      {/* Bottom spacer for safe area */}
-      <div className="h-6" />
     </LayoutContainer>
   )
 }
