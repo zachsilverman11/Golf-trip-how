@@ -20,6 +20,7 @@ import type { MatchState } from '@/lib/supabase/match-types'
 import type { FormatState } from '@/lib/format-types'
 import { generateNarratives } from '@/lib/narrative-utils'
 import { CompetitionBadge } from '@/components/scoring/CompetitionBadge'
+import { ShareButton } from '@/components/ui/ShareButton'
 
 interface Player {
   id: string
@@ -322,6 +323,10 @@ export default function ScorePage() {
           {saving && (
             <span className="text-xs text-text-2">Saving...</span>
           )}
+          <ShareButton
+            title={round?.name || 'Round'}
+            text={buildScoreShareText(round, players, scores, matchState, currentHole)}
+          />
           <LiveIndicator isConnected={isConnected} />
         </div>
       </div>
@@ -418,6 +423,46 @@ export default function ScorePage() {
       )}
     </LayoutContainer>
   )
+}
+
+function buildScoreShareText(
+  round: DbRoundWithGroups | null,
+  players: { id: string; name: string; playingHandicap: number | null }[],
+  scores: { [playerId: string]: { [hole: number]: number | null } },
+  matchState: MatchState | null,
+  currentHole: number
+): string {
+  if (!round) return '⛳ Golf Round'
+
+  // If match play, share match status
+  if (matchState) {
+    const teamAName = matchState.teamA.player1.name.split(' ')[0]
+    const teamBName = matchState.teamB.player1.name.split(' ')[0]
+    const lead = matchState.holeResults
+      .filter(r => r.winner !== null)
+      .slice(-1)[0]?.cumulativeLead || 0
+    const holesPlayed = matchState.holeResults.filter(r => r.winner !== null).length
+
+    if (lead === 0) {
+      return `⛳ ${round.name}: ${teamAName} vs ${teamBName} — All Square thru ${holesPlayed}`
+    }
+    const leader = lead > 0 ? teamAName : teamBName
+    return `⛳ ${round.name}: ${leader} ${Math.abs(lead)} UP thru ${holesPlayed} 🔥`
+  }
+
+  // Stroke play: share scores through current hole
+  const lines = players.map(p => {
+    let total = 0
+    let thru = 0
+    for (let h = 1; h <= 18; h++) {
+      const s = scores[p.id]?.[h]
+      if (s != null) { total += s; thru = h }
+    }
+    return thru > 0 ? `${p.name.split(' ')[0]}: ${total} thru ${thru}` : null
+  }).filter(Boolean)
+
+  if (lines.length === 0) return `⛳ ${round.name} — Scoring in progress`
+  return `⛳ ${round.name}\n${lines.join('\n')}`
 }
 
 function BackIcon() {

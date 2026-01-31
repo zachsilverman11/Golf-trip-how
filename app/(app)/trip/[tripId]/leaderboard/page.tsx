@@ -14,6 +14,7 @@ import { getRoundsAction } from '@/lib/supabase/round-actions'
 import type { LeaderboardEntry, TripLeaderboard } from '@/lib/supabase/leaderboard-actions'
 import type { DbRoundWithTee } from '@/lib/supabase/types'
 import type { TripFormatStandings } from '@/lib/format-types'
+import { ShareButton } from '@/components/ui/ShareButton'
 
 type ScoringMode = 'net' | 'gross' | 'format'
 
@@ -124,9 +125,15 @@ export default function LeaderboardPage() {
             Leaderboard
           </h1>
         </div>
-        <Badge variant="live">
-          Live
-        </Badge>
+        <div className="flex items-center gap-2">
+          <ShareButton
+            title="Leaderboard"
+            text={buildLeaderboardShareText(entriesWithPosition, scoringMode)}
+          />
+          <Badge variant="live">
+            Live
+          </Badge>
+        </div>
       </div>
 
       {/* Round filter */}
@@ -190,6 +197,20 @@ export default function LeaderboardPage() {
       </div>
     </LayoutContainer>
   )
+}
+
+function buildLeaderboardShareText(
+  entries: { playerName: string; displayPosition: number; netTotal: number; grossTotal: number; scoreToPar: number; thru: number }[],
+  mode: string
+): string {
+  if (entries.length === 0) return '⛳ Leaderboard — No scores yet'
+  const lines = entries.slice(0, 5).map((e) => {
+    const score = mode === 'net' ? e.netTotal : e.grossTotal
+    const delta = e.scoreToPar
+    const deltaStr = delta === 0 ? 'E' : delta > 0 ? `+${delta}` : `${delta}`
+    return `${e.displayPosition}. ${e.playerName} — ${score} (${deltaStr}) thru ${e.thru}`
+  })
+  return `⛳ Leaderboard\n${lines.join('\n')}${entries.length > 5 ? `\n...and ${entries.length - 5} more` : ''}`
 }
 
 function BackIcon() {

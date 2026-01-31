@@ -12,6 +12,7 @@ import { MatchStatus, PressStatus, PressButton } from '@/components/match'
 import { getMatchStateAction, syncMatchStateAction, updateMatchStakesAction } from '@/lib/supabase/match-actions'
 import { formatMoney, formatTeamNames, calculateExposure, formatMatchStatus } from '@/lib/match-utils'
 import type { MatchState, ComputedHoleResult } from '@/lib/supabase/match-types'
+import { ShareButton } from '@/components/ui/ShareButton'
 import { cn } from '@/lib/utils'
 
 export default function MatchPage() {
@@ -124,9 +125,20 @@ export default function MatchPage() {
           <BackIcon />
           Back to round
         </Link>
-        <h1 className="font-display text-xl font-bold text-text-0">
-          Match Details
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="font-display text-xl font-bold text-text-0">
+            Match Details
+          </h1>
+          <ShareButton
+            title={`${teamANames} vs ${teamBNames}`}
+            text={matchState.status === 'completed' && matchState.winner && matchState.finalResult
+              ? `🏆 ${matchState.winner === 'team_a' ? teamANames : teamBNames} wins ${matchState.finalResult} 💰`
+              : matchState.currentLead === 0
+                ? `⛳ ${teamANames} vs ${teamBNames} — All Square thru ${matchState.holesPlayed}`
+                : `⛳ ${Math.abs(matchState.currentLead) > 0 && matchState.currentLead > 0 ? teamANames : teamBNames} ${Math.abs(matchState.currentLead)} UP thru ${matchState.holesPlayed}`
+            }
+          />
+        </div>
       </div>
 
       {/* Teams & Status */}

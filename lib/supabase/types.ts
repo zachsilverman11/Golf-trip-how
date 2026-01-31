@@ -182,6 +182,26 @@ export interface DbPlayerWithScores extends DbPlayer {
   scores: DbScore[]
 }
 
+// ============================================================================
+// TRIP MEDIA TYPES
+// ============================================================================
+
+export interface DbTripMedia {
+  id: string
+  trip_id: string
+  uploaded_by: string
+  player_name: string | null
+  storage_path: string
+  thumbnail_path: string | null
+  media_type: 'image' | 'video'
+  caption: string | null
+  round_id: string | null
+  hole_number: number | null
+  created_at: string
+}
+
+export type DbTripMediaInsert = Omit<DbTripMedia, 'id' | 'created_at'>
+
 // Minimal round data for Trip HQ display
 export interface DbRoundSummary {
   id: string

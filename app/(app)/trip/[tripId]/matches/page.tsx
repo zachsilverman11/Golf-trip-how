@@ -10,6 +10,7 @@ import { ErrorCard } from '@/components/ui/ErrorCard'
 import { MatchStatus } from '@/components/match'
 import { getMatchesForTripAction, TripMatchSummary } from '@/lib/supabase/match-actions'
 import { formatMoney, formatMatchStatus } from '@/lib/match-utils'
+import { ShareButton } from '@/components/ui/ShareButton'
 import { cn } from '@/lib/utils'
 
 export default function MatchesPage() {
@@ -145,6 +146,10 @@ function MatchCard({ match, tripId }: { match: TripMatchSummary; tripId: string 
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <ShareButton
+              title={`Match: ${match.teamANames} vs ${match.teamBNames}`}
+              text={buildMatchShareText(match)}
+            />
             {isComplete ? (
               <Badge variant="gold">Complete</Badge>
             ) : (
@@ -191,6 +196,23 @@ function MatchCard({ match, tripId }: { match: TripMatchSummary; tripId: string 
       </Card>
     </Link>
   )
+}
+
+function buildMatchShareText(match: TripMatchSummary): string {
+  if (match.status === 'completed' && match.winner && match.finalResult) {
+    const winner = match.winner === 'team_a' ? match.teamANames : match.teamBNames
+    return `🏆 Match Play: ${winner} wins ${match.finalResult} 💰`
+  }
+  if (match.holesPlayed > 0) {
+    const lead = Math.abs(match.currentLead)
+    const remaining = 18 - match.holesPlayed
+    if (match.currentLead === 0) {
+      return `⛳ ${match.teamANames} vs ${match.teamBNames} — All Square thru ${match.holesPlayed}`
+    }
+    const leader = match.currentLead > 0 ? match.teamANames : match.teamBNames
+    return `⛳ ${leader} ${lead} UP with ${remaining} to play — ${match.teamANames} vs ${match.teamBNames}`
+  }
+  return `⛳ Match Play: ${match.teamANames} vs ${match.teamBNames}`
 }
 
 function BackIcon() {
