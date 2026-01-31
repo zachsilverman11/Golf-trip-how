@@ -37,11 +37,11 @@ function LoginForm() {
       <LayoutContainer>
         <div className="mx-auto max-w-sm">
           <div className="mb-8 text-center">
-            <h1 className="mb-2 font-display text-3xl font-bold text-text-0">
-              Golf Trip HQ
+            <h1 className="mb-2 font-display text-3xl font-extrabold tracking-widest text-accent">
+              PRESS
             </h1>
             <p className="text-text-2">
-              Sign in to manage your golf trips
+              Always pressing.
             </p>
           </div>
 

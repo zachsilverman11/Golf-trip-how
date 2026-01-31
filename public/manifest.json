@@ -1,0 +1,16 @@
+{
+  "name": "Press",
+  "short_name": "Press",
+  "description": "Always pressing. Live golf trip scoring, matches, and settlements.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0A0A",
+  "theme_color": "#0A0A0A",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
