@@ -57,68 +57,55 @@ export default async function TripsPage() {
 
       {/* Empty state */}
       {trips.length === 0 ? (
-        <div>
-          {/* Hero */}
-          <div className="relative overflow-hidden rounded-card border border-accent/20 bg-gradient-to-br from-accent/5 via-bg-1 to-bg-2 p-5 mb-5">
-            <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-accent/8 blur-3xl" />
-            <div className="absolute -left-8 -bottom-8 h-32 w-32 rounded-full bg-good/6 blur-3xl" />
-            <div className="relative">
-              <h2 className="font-display text-3xl font-extrabold tracking-widest text-accent leading-tight mb-1">
+        <div className="-mx-4 -mt-6 flex min-h-[calc(100dvh-80px)] flex-col">
+          {/* Hero image section */}
+          <div className="relative h-[55dvh] min-h-[320px] w-full overflow-hidden">
+            {/* Background image */}
+            <img
+              src="/hero-golf.jpg"
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            {/* Gradient overlay — dark at bottom for text */}
+            <div className="absolute inset-0 bg-gradient-to-t from-bg-0 via-bg-0/60 to-transparent" />
+            {/* Content overlay */}
+            <div className="absolute bottom-0 left-0 right-0 p-6 pb-8">
+              <h1 className="font-display text-5xl font-extrabold tracking-wider text-text-0 mb-1">
                 PRESS
-              </h2>
-              <p className="text-text-2 text-xs font-medium uppercase tracking-wider mb-3">
+              </h1>
+              <p className="text-accent text-sm font-semibold uppercase tracking-widest mb-4">
                 Always pressing.
               </p>
-              <p className="text-text-1 text-sm leading-relaxed">
-                The press on 14 that changed everything. The three-putt that cost someone $50. The shot nobody will shut up about.
+              <p className="text-text-1/80 text-[15px] leading-relaxed max-w-[300px]">
+                The press on 14 that changed everything. The three-putt that cost someone $50.
               </p>
             </div>
           </div>
 
-          {/* Feature highlights — compact */}
-          <div className="space-y-3 mb-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-                <ScoreIcon />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-text-0">Live scoring, real stakes</p>
-                <p className="text-xs text-text-2">Match play, presses, team games — all wired up.</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gold/10 text-gold">
-                <MoneyIcon />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-text-0">Know who owes who</p>
-                <p className="text-xs text-text-2">Per-person settlement. No napkin math. Just pay up.</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-good/10 text-good">
-                <TrophyIcon />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-text-0">Ryder Cup your trip</p>
-                <p className="text-xs text-text-2">Teams. Points. A champion at the end.</p>
-              </div>
-            </div>
-          </div>
-
-          {/* CTAs */}
-          <div className="space-y-2">
+          {/* CTAs — right below the fold */}
+          <div className="flex-1 flex flex-col justify-center px-4 py-6 space-y-3">
             <Link href="/trips/new">
               <Button size="large" className="w-full">
-                Start Your Trip
+                Start a Trip
               </Button>
             </Link>
             <Link href="/quick-round">
               <Button variant="secondary" className="w-full">
                 <BoltIcon />
-                Just score a round
+                Quick Round
               </Button>
             </Link>
+            <div className="flex items-center justify-center gap-6 pt-3">
+              <span className="text-text-2 text-xs flex items-center gap-1.5">
+                <ScoreIcon /> Match Play
+              </span>
+              <span className="text-text-2 text-xs flex items-center gap-1.5">
+                <MoneyIcon /> Settlement
+              </span>
+              <span className="text-text-2 text-xs flex items-center gap-1.5">
+                <TrophyIcon /> Team Wars
+              </span>
+            </div>
           </div>
         </div>
       ) : (
