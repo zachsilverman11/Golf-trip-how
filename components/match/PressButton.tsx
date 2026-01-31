@@ -57,14 +57,14 @@ export function PressButton({
   }, [showOptions])
 
   const pressOptions = useMemo((): PressOption[] => {
-    if (currentHole >= 18) return []
-    if (currentHole <= 8) {
+    // Holes 1-9 (front 9): two options — press front or press match
+    if (currentHole <= 9) {
       return [
         { label: 'Front 9', endingHole: 9, short: '→9' },
         { label: 'Match', endingHole: 18, short: '→18' },
       ]
     }
-    // Holes 9-17: only match press (ends 18)
+    // Holes 10-18 (back 9): single option — press match (ends 18)
     return [{ label: 'Press', endingHole: 18, short: '→18' }]
   }, [currentHole])
 
