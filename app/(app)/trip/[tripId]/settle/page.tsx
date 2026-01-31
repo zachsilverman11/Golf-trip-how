@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import Link from 'next/link'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { Card } from '@/components/ui/Card'
 import { ErrorCard } from '@/components/ui/ErrorCard'
@@ -61,6 +62,18 @@ export default function SettlePage() {
   if (loading) {
     return (
       <LayoutContainer className="py-6">
+        <div className="mb-6">
+          <Link
+            href={`/trip/${tripId}`}
+            className="mb-1 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
+          >
+            <BackIcon />
+            Back to trip
+          </Link>
+          <h1 className="font-display text-2xl font-bold text-text-0">
+            Trip Money
+          </h1>
+        </div>
         <div className="text-center text-text-2">Loading...</div>
       </LayoutContainer>
     )
@@ -69,9 +82,18 @@ export default function SettlePage() {
   if (error) {
     return (
       <LayoutContainer className="py-6">
-        <h1 className="mb-6 font-display text-2xl font-bold text-text-0">
-          Trip Money
-        </h1>
+        <div className="mb-6">
+          <Link
+            href={`/trip/${tripId}`}
+            className="mb-1 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
+          >
+            <BackIcon />
+            Back to trip
+          </Link>
+          <h1 className="font-display text-2xl font-bold text-text-0">
+            Trip Money
+          </h1>
+        </div>
         <ErrorCard
           title="Unable to Load Settlements"
           message="Settlement data isn't available yet. Please try again later."
@@ -88,9 +110,18 @@ export default function SettlePage() {
 
   return (
     <LayoutContainer className="py-6">
-      <h1 className="mb-6 font-display text-2xl font-bold text-text-0">
-        Trip Money
-      </h1>
+      <div className="mb-6">
+        <Link
+          href={`/trip/${tripId}`}
+          className="mb-1 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
+        >
+          <BackIcon />
+          Back to trip
+        </Link>
+        <h1 className="font-display text-2xl font-bold text-text-0">
+          Trip Money
+        </h1>
+      </div>
 
       {/* War Totals (if war mode enabled and has data) */}
       {warTotals && (warTotals.teamA.points > 0 || warTotals.teamB.points > 0) && (
@@ -353,5 +384,13 @@ function SettlementMatrix({ playerTotals }: { playerTotals: PlayerMoneyTotal[] }
         </div>
       ))}
     </div>
+  )
+}
+
+function BackIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+    </svg>
   )
 }

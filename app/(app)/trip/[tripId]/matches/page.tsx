@@ -44,9 +44,18 @@ export default function MatchesPage() {
   if (loading) {
     return (
       <LayoutContainer className="py-6">
-        <h1 className="mb-6 font-display text-2xl font-bold text-text-0">
-          Matches
-        </h1>
+        <div className="mb-6">
+          <Link
+            href={`/trip/${tripId}`}
+            className="mb-1 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
+          >
+            <BackIcon />
+            Back to trip
+          </Link>
+          <h1 className="font-display text-2xl font-bold text-text-0">
+            Matches
+          </h1>
+        </div>
         <div className="text-center text-text-2">Loading matches...</div>
       </LayoutContainer>
     )
@@ -55,9 +64,18 @@ export default function MatchesPage() {
   if (error) {
     return (
       <LayoutContainer className="py-6">
-        <h1 className="mb-6 font-display text-2xl font-bold text-text-0">
-          Matches
-        </h1>
+        <div className="mb-6">
+          <Link
+            href={`/trip/${tripId}`}
+            className="mb-1 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
+          >
+            <BackIcon />
+            Back to trip
+          </Link>
+          <h1 className="font-display text-2xl font-bold text-text-0">
+            Matches
+          </h1>
+        </div>
         <ErrorCard
           title="Unable to Load Matches"
           message="Money Games aren't available yet. Please try again later."
@@ -70,9 +88,18 @@ export default function MatchesPage() {
 
   return (
     <LayoutContainer className="py-6">
-      <h1 className="mb-6 font-display text-2xl font-bold text-text-0">
-        Matches
-      </h1>
+      <div className="mb-6">
+        <Link
+          href={`/trip/${tripId}`}
+          className="mb-1 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
+        >
+          <BackIcon />
+          Back to trip
+        </Link>
+        <h1 className="font-display text-2xl font-bold text-text-0">
+          Matches
+        </h1>
+      </div>
 
       {matches.length === 0 ? (
         <Card className="p-8 text-center">
@@ -163,5 +190,13 @@ function MatchCard({ match, tripId }: { match: TripMatchSummary; tripId: string 
         </div>
       </Card>
     </Link>
+  )
+}
+
+function BackIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+    </svg>
   )
 }
