@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
-import { Badge } from '@/components/ui/Badge'
+import { LiveIndicator } from '@/components/ui/LiveIndicator'
 import { Button } from '@/components/ui/Button'
 import { GroupScorer } from '@/components/scoring/GroupScorer'
 import { MatchStrip } from '@/components/match'
@@ -13,6 +13,7 @@ import { getRoundAction, updateRoundAction } from '@/lib/supabase/round-actions'
 import { getRoundScoresMapAction, upsertScoreAction } from '@/lib/supabase/score-actions'
 import { getMatchStateAction, syncMatchStateAction } from '@/lib/supabase/match-actions'
 import { getFormatStateAction } from '@/lib/supabase/format-actions'
+import { useRealtimeScores } from '@/hooks/useRealtimeScores'
 import type { DbRoundWithGroups, DbHole } from '@/lib/supabase/types'
 import type { MatchState } from '@/lib/supabase/match-types'
 import type { FormatState } from '@/lib/format-types'
@@ -46,6 +47,38 @@ export default function ScorePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [liveToast, setLiveToast] = useState(false)
+  const liveToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // --- Realtime data refresh ---
+  const refreshData = useCallback(async () => {
+    const [scoresResult, matchResult] = await Promise.all([
+      getRoundScoresMapAction(roundId),
+      getMatchStateAction(roundId),
+    ])
+    setScores(scoresResult.scores)
+    if (matchResult.success && matchResult.state) {
+      setMatchState(matchResult.state)
+    }
+    // Also refresh format state if applicable
+    if (round?.format === 'points_hilo') {
+      const formatResult = await getFormatStateAction(roundId)
+      if (formatResult.formatState) {
+        setFormatState(formatResult.formatState)
+      }
+    }
+    // Show a subtle toast for remote updates
+    setLiveToast(true)
+    if (liveToastTimer.current) clearTimeout(liveToastTimer.current)
+    liveToastTimer.current = setTimeout(() => setLiveToast(false), 2000)
+  }, [roundId, round?.format])
+
+  const { isConnected, markLocalSave } = useRealtimeScores({
+    roundId,
+    onScoreChange: refreshData,
+    onMatchChange: refreshData,
+    enabled: !loading && !!round,
+  })
 
   // Load round, scores, and match
   useEffect(() => {
@@ -183,6 +216,9 @@ export default function ScorePage() {
     // Track current hole
     setCurrentHole(holeNumber)
 
+    // Mark local save so realtime ignores the echo
+    markLocalSave()
+
     // Optimistic update
     setScores((prev) => ({
       ...prev,
@@ -217,7 +253,7 @@ export default function ScorePage() {
     }
 
     setSaving(false)
-  }, [roundId, matchState, formatState, refreshMatchState, refreshFormatState])
+  }, [roundId, matchState, formatState, refreshMatchState, refreshFormatState, markLocalSave])
 
   // Handle round completion
   const handleComplete = async () => {
@@ -275,9 +311,16 @@ export default function ScorePage() {
           {saving && (
             <span className="text-xs text-text-2">Saving...</span>
           )}
-          <Badge variant="live">Live</Badge>
+          <LiveIndicator isConnected={isConnected} />
         </div>
       </div>
+
+      {/* Live update toast */}
+      {liveToast && (
+        <div className="mb-2 text-center text-xs text-good/80 animate-pulse">
+          Scores updated
+        </div>
+      )}
 
       {/* Format Strip (for Points Hi/Lo with teams configured) */}
       {formatState && (
