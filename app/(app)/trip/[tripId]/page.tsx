@@ -10,6 +10,7 @@ import { SetupChecklist } from '@/components/trip/SetupChecklist'
 import { WarToggle } from '@/components/trip/WarToggle'
 import { TripTeamAssignment } from '@/components/trip/TripTeamAssignment'
 import { TripRoundsSection } from '@/components/trip/TripRoundsSection'
+import { FeedPreview } from '@/components/trip/FeedPreview'
 
 export const dynamic = 'force-dynamic'
 
@@ -175,7 +176,10 @@ export default async function TripPage({ params }: TripPageProps) {
         </section>
       )}
 
-      {/* Section D: Rounds on this Trip */}
+      {/* Section D: Activity Feed Preview */}
+      <FeedPreview tripId={params.tripId} />
+
+      {/* Section E: Rounds on this Trip */}
       <TripRoundsSection
         tripId={params.tripId}
         rounds={trip.recentRounds}
