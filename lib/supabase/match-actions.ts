@@ -3,6 +3,7 @@
 import { createClient, createAdminClient } from './server'
 import { getCurrentUser } from './auth-actions'
 import { revalidatePath } from 'next/cache'
+import { generatePressEvent } from './feed-actions'
 import type {
   DbMatch,
   DbPress,
@@ -167,6 +168,23 @@ export async function addPressAction(input: AddPressInput): Promise<PressActionR
     if (error) {
       console.error('Add press error:', error)
       return { success: false, error: error.message }
+    }
+
+    // Generate feed event (fire and forget)
+    const { data: round } = await supabase
+      .from('rounds')
+      .select('trip_id')
+      .eq('id', match.round_id)
+      .single()
+
+    if (round) {
+      generatePressEvent(
+        round.trip_id,
+        match.round_id,
+        input.startingHole,
+        input.endingHole || 18,
+        match.stake_per_man
+      ).catch(() => {})
     }
 
     return { success: true, press }

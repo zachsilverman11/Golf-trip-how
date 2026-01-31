@@ -3,6 +3,7 @@
 import { createClient } from './server'
 import { getCurrentUser } from './auth-actions'
 import { revalidatePath } from 'next/cache'
+import { generateMediaEvent } from './feed-actions'
 import type { DbTripMedia } from './types'
 
 // ============================================================================
@@ -113,6 +114,15 @@ export async function uploadTripMediaAction(
 
     revalidatePath(`/trip/${input.tripId}`)
     revalidatePath(`/trip/${input.tripId}/media`)
+
+    // Generate feed event (fire and forget)
+    generateMediaEvent(
+      input.tripId,
+      playerName,
+      input.holeNumber,
+      input.roundId,
+      mediaType
+    ).catch(() => {})
 
     return { success: true, media: media as DbTripMedia }
   } catch (err) {

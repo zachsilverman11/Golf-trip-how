@@ -14,6 +14,7 @@ import { getTripAction } from '@/lib/supabase/trip-actions'
 import { getRoundScoresMapAction, upsertScoreAction } from '@/lib/supabase/score-actions'
 import { getMatchStateAction, syncMatchStateAction } from '@/lib/supabase/match-actions'
 import { getFormatStateAction } from '@/lib/supabase/format-actions'
+import { generateScoreEvents } from '@/lib/supabase/feed-actions'
 import { useRealtimeScores } from '@/hooks/useRealtimeScores'
 import type { DbRoundWithGroups, DbHole } from '@/lib/supabase/types'
 import type { MatchState } from '@/lib/supabase/match-types'
@@ -252,6 +253,21 @@ export default function ScorePage() {
     if (!result.success) {
       console.error('Failed to save score:', result.error)
       // Could revert optimistic update here if needed
+    } else if (grossStrokes !== null) {
+      // Generate feed events (fire and forget — don't block scoring)
+      const player = players.find((p) => p.id === playerId)
+      const hole = holes.find((h) => h.number === holeNumber)
+      if (player && hole) {
+        generateScoreEvents(
+          tripId,
+          roundId,
+          playerId,
+          player.name,
+          holeNumber,
+          grossStrokes,
+          hole.par
+        ).catch(() => {}) // Swallow errors
+      }
     }
 
     // Refresh match state if there's an active match
@@ -265,7 +281,7 @@ export default function ScorePage() {
     }
 
     setSaving(false)
-  }, [roundId, matchState, formatState, refreshMatchState, refreshFormatState, markLocalSave])
+  }, [roundId, tripId, players, holes, matchState, formatState, refreshMatchState, refreshFormatState, markLocalSave])
 
   // Handle round completion
   const handleComplete = async () => {

@@ -12,6 +12,7 @@ import type {
 } from './types'
 import { getCurrentUser } from './auth-actions'
 import { revalidatePath } from 'next/cache'
+import { generateRoundEvent } from './feed-actions'
 
 // ============================================================================
 // Check if Round has Scores
@@ -296,6 +297,20 @@ export async function updateRoundAction(
     if (error) {
       console.error('Update round error:', error)
       return { success: false, error: error.message }
+    }
+
+    // Generate feed event for round status changes (fire and forget)
+    if (input.status === 'in_progress' || input.status === 'completed') {
+      const { data: roundData } = await supabase
+        .from('rounds')
+        .select('name')
+        .eq('id', roundId)
+        .single()
+
+      if (roundData) {
+        const eventType = input.status === 'in_progress' ? 'round_start' as const : 'round_complete' as const
+        generateRoundEvent(tripId, roundId, roundData.name, eventType).catch(() => {})
+      }
     }
 
     revalidatePath(`/trip/${tripId}/round/${roundId}`)

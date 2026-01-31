@@ -2,72 +2,52 @@
 
 import { createClient } from './server'
 import { getCurrentUser } from './auth-actions'
-import { getMatchStateAction } from './match-actions'
-import { generateNarratives, type NarrativeEvent } from '../narrative-utils'
-import type { MatchState } from './match-types'
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
+export type FeedEventType =
+  | 'score'
+  | 'press'
+  | 'match_result'
+  | 'media'
+  | 'milestone'
+  | 'settlement'
+  | 'round_start'
+  | 'round_complete'
+
 export interface FeedEvent {
   id: string
-  type:
-    | 'round_started'
-    | 'round_completed'
-    | 'hole_result'
-    | 'press_added'
-    | 'match_closed'
-    | 'match_status'
-  timestamp: string // ISO date string
-  roundId: string
-  roundName: string
-  holeNumber?: number
-  players?: string[] // first names involved
-  narrative: string // human-readable text
-  intensity: 'high' | 'medium' | 'low'
+  trip_id: string
+  event_type: FeedEventType
+  player_name: string | null
+  round_id: string | null
+  hole_number: number | null
+  headline: string
+  detail: string | null
+  metadata: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface CreateFeedEventInput {
+  event_type: FeedEventType
+  player_name?: string | null
+  round_id?: string | null
+  hole_number?: number | null
+  headline: string
+  detail?: string | null
+  metadata?: Record<string, unknown> | null
 }
 
 // ============================================================================
-// HELPERS
-// ============================================================================
-
-/** Extract first name from a full name */
-function firstName(name: string): string {
-  return name.split(' ')[0]
-}
-
-/** Build team label from TeamInfo */
-function teamLabel(teamInfo: MatchState['teamA']): string {
-  const names = [firstName(teamInfo.player1.name)]
-  if (teamInfo.player2) names.push(firstName(teamInfo.player2.name))
-  return names.length > 1 ? `${names[0]} & ${names[1]}` : names[0]
-}
-
-/** Get all player first names from a match state */
-function allPlayerNames(state: MatchState): string[] {
-  const names = [firstName(state.teamA.player1.name)]
-  if (state.teamA.player2) names.push(firstName(state.teamA.player2.name))
-  names.push(firstName(state.teamB.player1.name))
-  if (state.teamB.player2) names.push(firstName(state.teamB.player2.name))
-  return names
-}
-
-/** Estimate a timestamp for a hole event based on round date and hole number */
-function estimateHoleTimestamp(roundCreatedAt: string, holeNumber: number): string {
-  const base = new Date(roundCreatedAt)
-  // Space holes ~15 minutes apart
-  base.setMinutes(base.getMinutes() + (holeNumber - 1) * 15)
-  return base.toISOString()
-}
-
-// ============================================================================
-// MAIN FEED ACTION
+// GET TRIP FEED (paginated, newest first)
 // ============================================================================
 
 export async function getTripFeedAction(
   tripId: string,
-  maxEvents: number = 50
+  limit: number = 50,
+  offset: number = 0
 ): Promise<{ events: FeedEvent[]; error?: string }> {
   const supabase = createClient()
   const user = await getCurrentUser()
@@ -77,212 +57,242 @@ export async function getTripFeedAction(
   }
 
   try {
-    // 1. Fetch all rounds for the trip
-    const { data: rounds, error: roundsError } = await supabase
-      .from('rounds')
-      .select('id, name, date, status, created_at')
+    const { data, error } = await supabase
+      .from('trip_feed_events')
+      .select('*')
       .eq('trip_id', tripId)
-      .order('date', { ascending: true })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
 
-    if (roundsError) {
-      return { events: [], error: roundsError.message }
+    if (error) {
+      // Table might not exist yet — return empty gracefully
+      if (error.code === '42P01' || error.message.includes('does not exist')) {
+        return { events: [] }
+      }
+      console.error('Get trip feed error:', error)
+      return { events: [], error: error.message }
     }
 
-    if (!rounds || rounds.length === 0) {
-      return { events: [] }
-    }
-
-    const allEvents: FeedEvent[] = []
-
-    // 2. Process each round
-    for (const round of rounds) {
-      // Round started event
-      if (round.status === 'in_progress' || round.status === 'completed') {
-        allEvents.push({
-          id: `round-started-${round.id}`,
-          type: 'round_started',
-          timestamp: round.created_at,
-          roundId: round.id,
-          roundName: round.name,
-          narrative: `${round.name} is underway`,
-          intensity: 'low',
-        })
-      }
-
-      // Try to fetch match state for this round
-      const matchResult = await getMatchStateAction(round.id)
-      if (!matchResult.success || !matchResult.state) {
-        // No match for this round — just add round events
-        if (round.status === 'completed') {
-          allEvents.push({
-            id: `round-completed-${round.id}`,
-            type: 'round_completed',
-            timestamp: new Date(
-              new Date(round.created_at).getTime() + 18 * 15 * 60 * 1000
-            ).toISOString(),
-            roundId: round.id,
-            roundName: round.name,
-            narrative: `${round.name} complete`,
-            intensity: 'low',
-          })
-        }
-        continue
-      }
-
-      const state = matchResult.state
-      const teamA = teamLabel(state.teamA)
-      const teamB = teamLabel(state.teamB)
-      const players = allPlayerNames(state)
-
-      // 3. Generate hole_result events from holeResults
-      const completedHoles = state.holeResults.filter((r) => r.winner !== null)
-
-      for (const result of completedHoles) {
-        const holeTs = estimateHoleTimestamp(round.created_at, result.holeNumber)
-
-        let narrative: string
-        let intensity: FeedEvent['intensity'] = 'low'
-
-        if (result.winner === 'team_a') {
-          narrative = `${teamA} wins hole ${result.holeNumber}`
-          intensity = 'medium'
-        } else if (result.winner === 'team_b') {
-          narrative = `${teamB} wins hole ${result.holeNumber}`
-          intensity = 'medium'
-        } else {
-          narrative = `Hole ${result.holeNumber} halved`
-          intensity = 'low'
-        }
-
-        // Add match state context
-        const absLead = Math.abs(result.cumulativeLead)
-        const holesRemaining = 18 - result.holeNumber
-        if (result.cumulativeLead !== 0 && holesRemaining > 0) {
-          const leader = result.cumulativeLead > 0 ? teamA : teamB
-          narrative += ` — ${leader} ${absLead} UP with ${holesRemaining} to play`
-        } else if (result.cumulativeLead === 0) {
-          narrative += ' — All Square'
-        }
-
-        allEvents.push({
-          id: `hole-${round.id}-${result.holeNumber}`,
-          type: 'hole_result',
-          timestamp: holeTs,
-          roundId: round.id,
-          roundName: round.name,
-          holeNumber: result.holeNumber,
-          players,
-          narrative,
-          intensity,
-        })
-      }
-
-      // 4. Generate press events
-      for (const press of state.presses) {
-        const pressTs = estimateHoleTimestamp(round.created_at, press.startingHole)
-
-        // Figure out who pressed (the trailing team)
-        const holeBefore = completedHoles.find(
-          (r) => r.holeNumber === press.startingHole - 1
-        )
-        const leadAtPress = holeBefore ? holeBefore.cumulativeLead : 0
-        const pressingTeam =
-          leadAtPress > 0 ? teamB : leadAtPress < 0 ? teamA : null
-
-        const who = pressingTeam ? `${pressingTeam} presses` : 'Press activated'
-
-        allEvents.push({
-          id: `press-${round.id}-${press.pressNumber}`,
-          type: 'press_added',
-          timestamp: pressTs,
-          roundId: round.id,
-          roundName: round.name,
-          holeNumber: press.startingHole,
-          players,
-          narrative: `${who} from hole ${press.startingHole}${press.endingHole < 18 ? ` →${press.endingHole}` : ''} — $${press.stakePerMan}/man`,
-          intensity: 'medium',
-        })
-      }
-
-      // 5. Use narrative engine for high-intensity events
-      const teamANames = [state.teamA.player1.name]
-      if (state.teamA.player2) teamANames.push(state.teamA.player2.name)
-      const teamBNames = [state.teamB.player1.name]
-      if (state.teamB.player2) teamBNames.push(state.teamB.player2.name)
-
-      const narratives = generateNarratives(
-        state.holeResults,
-        state,
-        teamANames,
-        teamBNames
-      )
-
-      for (const narr of narratives) {
-        // Map narrative type to feed event type
-        let eventType: FeedEvent['type'] = 'match_status'
-        if (narr.type === 'match_close') eventType = 'match_closed'
-        if (narr.type === 'press') continue // Already handled above
-        if (narr.type === 'momentum_shift') eventType = 'match_status'
-
-        const narrTs = estimateHoleTimestamp(round.created_at, narr.hole)
-
-        // Deduplicate: skip if we already have a narrative event at this hole
-        const existingNarr = allEvents.find(
-          (e) =>
-            e.roundId === round.id &&
-            e.type === eventType &&
-            e.holeNumber === narr.hole
-        )
-        if (existingNarr) continue
-
-        allEvents.push({
-          id: `narr-${round.id}-${narr.type}-${narr.hole}`,
-          type: eventType,
-          timestamp: narrTs,
-          roundId: round.id,
-          roundName: round.name,
-          holeNumber: narr.hole,
-          players,
-          narrative: narr.text,
-          intensity: narr.intensity,
-        })
-      }
-
-      // 6. Round completed event
-      if (round.status === 'completed') {
-        let completedNarrative = `${round.name} complete`
-        if (state.isMatchClosed && state.winner && state.finalResult) {
-          const winner = state.winner === 'team_a' ? teamA : teamB
-          completedNarrative = `${round.name} final — ${winner} wins ${state.finalResult}`
-        }
-
-        allEvents.push({
-          id: `round-completed-${round.id}`,
-          type: 'round_completed',
-          timestamp: new Date(
-            new Date(round.created_at).getTime() + 18 * 15 * 60 * 1000
-          ).toISOString(),
-          roundId: round.id,
-          roundName: round.name,
-          players,
-          narrative: completedNarrative,
-          intensity: state.isMatchClosed ? 'high' : 'low',
-        })
-      }
-    }
-
-    // 7. Sort by timestamp DESC (most recent first)
-    allEvents.sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    )
-
-    // 8. Return max events
-    return { events: allEvents.slice(0, maxEvents) }
+    return { events: (data as FeedEvent[]) || [] }
   } catch (err) {
     console.error('Get trip feed error:', err)
     return {
       events: [],
       error: err instanceof Error ? err.message : 'Failed to load feed',
     }
+  }
+}
+
+// ============================================================================
+// CREATE FEED EVENT
+// ============================================================================
+
+export async function createFeedEventAction(
+  tripId: string,
+  event: CreateFeedEventInput
+): Promise<{ success: boolean; event?: FeedEvent; error?: string }> {
+  const supabase = createClient()
+  const user = await getCurrentUser()
+
+  if (!user) {
+    return { success: false, error: 'Not authenticated' }
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('trip_feed_events')
+      .insert({
+        trip_id: tripId,
+        event_type: event.event_type,
+        player_name: event.player_name ?? null,
+        round_id: event.round_id ?? null,
+        hole_number: event.hole_number ?? null,
+        headline: event.headline,
+        detail: event.detail ?? null,
+        metadata: event.metadata ?? null,
+      })
+      .select('*')
+      .single()
+
+    if (error) {
+      console.error('Create feed event error:', error)
+      return { success: false, error: error.message }
+    }
+
+    return { success: true, event: data as FeedEvent }
+  } catch (err) {
+    console.error('Create feed event error:', err)
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to create feed event',
+    }
+  }
+}
+
+// ============================================================================
+// GENERATE SCORE EVENTS
+// ============================================================================
+
+/**
+ * Auto-generate feed events when a score is saved.
+ * Only creates events for notable scores (birdie, eagle, double bogey+).
+ * Fire-and-forget — errors are logged but don't propagate.
+ */
+export async function generateScoreEvents(
+  tripId: string,
+  roundId: string,
+  _playerId: string,
+  playerName: string,
+  holeNumber: number,
+  score: number | null,
+  par: number
+): Promise<void> {
+  if (score === null || score <= 0) return
+
+  const diff = score - par
+  const firstName = playerName.split(' ')[0]
+
+  let headline: string | null = null
+  let detail: string | null = null
+  let metadata: Record<string, unknown> = {
+    score,
+    par,
+    diff,
+    hole_number: holeNumber,
+  }
+
+  if (diff <= -3) {
+    // Albatross / Double Eagle
+    headline = `🦅 ${firstName} made albatross on #${holeNumber}!`
+    detail = `${score} on the par ${par} — absolutely legendary`
+  } else if (diff === -2) {
+    // Eagle
+    headline = `🦅 ${firstName} eagled #${holeNumber}!`
+    detail = `${score} on the par ${par}`
+  } else if (diff === -1) {
+    // Birdie
+    headline = `🏌️ ${firstName} birdied #${holeNumber}`
+    detail = `${score} on the par ${par}`
+  } else if (diff === 2) {
+    // Double bogey
+    headline = `😬 ${firstName} made double bogey on #${holeNumber}`
+    detail = `${score} on the par ${par}`
+  } else if (diff === 3) {
+    // Triple bogey
+    headline = `💀 ${firstName} made triple bogey on #${holeNumber}`
+    detail = `${score} on the par ${par} — ouch`
+  } else if (diff >= 4) {
+    // Blow-up hole
+    headline = `🔥 ${firstName} made +${diff} on #${holeNumber}`
+    detail = `${score} on the par ${par} — we don't talk about this one`
+  }
+  // Par and bogey are skipped (too noisy)
+
+  if (!headline) return
+
+  try {
+    await createFeedEventAction(tripId, {
+      event_type: 'score',
+      player_name: firstName,
+      round_id: roundId,
+      hole_number: holeNumber,
+      headline,
+      detail,
+      metadata,
+    })
+  } catch (err) {
+    // Fire and forget — don't break scoring flow
+    console.error('Generate score feed event error:', err)
+  }
+}
+
+// ============================================================================
+// GENERATE PRESS EVENT
+// ============================================================================
+
+export async function generatePressEvent(
+  tripId: string,
+  roundId: string,
+  startingHole: number,
+  endingHole: number,
+  stakePerMan: number,
+  pressingTeamNames?: string
+): Promise<void> {
+  try {
+    const who = pressingTeamNames || 'A team'
+    const headline = `🔥 ${who} pressed on #${startingHole}`
+    const rangeStr = endingHole < 18 ? ` →${endingHole}` : ''
+    const detail = `New bet from hole ${startingHole}${rangeStr} — $${stakePerMan}/man`
+
+    await createFeedEventAction(tripId, {
+      event_type: 'press',
+      round_id: roundId,
+      hole_number: startingHole,
+      headline,
+      detail,
+      metadata: {
+        starting_hole: startingHole,
+        ending_hole: endingHole,
+        stake_per_man: stakePerMan,
+      },
+    })
+  } catch (err) {
+    console.error('Generate press feed event error:', err)
+  }
+}
+
+// ============================================================================
+// GENERATE MEDIA EVENT
+// ============================================================================
+
+export async function generateMediaEvent(
+  tripId: string,
+  playerName: string,
+  holeNumber?: number | null,
+  roundId?: string | null,
+  mediaType?: string
+): Promise<void> {
+  try {
+    const firstName = playerName.split(' ')[0]
+    const type = mediaType === 'video' ? 'video' : 'photo'
+    const locationStr = holeNumber ? ` from #${holeNumber}` : ''
+    const headline = `📸 ${firstName} posted a ${type}${locationStr}`
+
+    await createFeedEventAction(tripId, {
+      event_type: 'media',
+      player_name: firstName,
+      round_id: roundId ?? null,
+      hole_number: holeNumber ?? null,
+      headline,
+      metadata: { media_type: mediaType },
+    })
+  } catch (err) {
+    console.error('Generate media feed event error:', err)
+  }
+}
+
+// ============================================================================
+// GENERATE ROUND EVENT
+// ============================================================================
+
+export async function generateRoundEvent(
+  tripId: string,
+  roundId: string,
+  roundName: string,
+  status: 'round_start' | 'round_complete'
+): Promise<void> {
+  try {
+    const headline =
+      status === 'round_start'
+        ? `⛳ ${roundName} is underway!`
+        : `🏆 ${roundName} is complete`
+
+    await createFeedEventAction(tripId, {
+      event_type: status,
+      round_id: roundId,
+      headline,
+    })
+  } catch (err) {
+    console.error('Generate round feed event error:', err)
   }
 }
