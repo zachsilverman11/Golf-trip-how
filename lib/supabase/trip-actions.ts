@@ -252,10 +252,45 @@ export async function deleteTripAction(tripId: string): Promise<TripActionResult
   }
 
   try {
-    const { error } = await supabase
-      .from('trips')
-      .delete()
-      .eq('id', tripId)
+    // Get all round IDs for this trip
+    const { data: rounds } = await supabase
+      .from('rounds')
+      .select('id')
+      .eq('trip_id', tripId)
+
+    const roundIds = rounds?.map((r) => r.id) || []
+
+    // Delete in dependency order to avoid FK constraint violations
+    if (roundIds.length > 0) {
+      // Delete scores first (references group_players → players)
+      await supabase.from('scores').delete().in('round_id', roundIds)
+      // Delete presses (references matches)
+      await supabase.from('presses').delete().in('round_id', roundIds)
+      // Delete matches (references players)
+      await supabase.from('matches').delete().in('round_id', roundIds)
+      // Delete group_players (references groups + players)
+      const { data: groups } = await supabase
+        .from('groups')
+        .select('id')
+        .in('round_id', roundIds)
+      const groupIds = groups?.map((g) => g.id) || []
+      if (groupIds.length > 0) {
+        await supabase.from('group_players').delete().in('group_id', groupIds)
+      }
+      // Delete groups (references players via scorer_player_id)
+      await supabase.from('groups').delete().in('round_id', roundIds)
+      // Delete rounds
+      await supabase.from('rounds').delete().eq('trip_id', tripId)
+    }
+
+    // Delete war team assignments
+    await supabase.from('trip_team_assignments').delete().eq('trip_id', tripId)
+    // Delete players (now safe — no FK references remain)
+    await supabase.from('players').delete().eq('trip_id', tripId)
+    // Delete trip members
+    await supabase.from('trip_members').delete().eq('trip_id', tripId)
+    // Finally delete the trip itself
+    const { error } = await supabase.from('trips').delete().eq('id', tripId)
 
     if (error) {
       console.error('Delete trip error:', error)
