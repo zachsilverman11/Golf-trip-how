@@ -1,9 +1,13 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { TripCardMenu } from './TripCardMenu'
+import { EditTripModal } from './EditTripModal'
+import { DeleteTripDialog } from './DeleteTripDialog'
 
 interface TripCardProps {
   id: string
@@ -14,6 +18,7 @@ interface TripCardProps {
   memberCount?: number
   roundCount?: number
   isActive?: boolean
+  isPast?: boolean
   className?: string
 }
 
@@ -42,7 +47,7 @@ function formatDateRange(start?: string | null, end?: string | null): string | n
   return `${startDate.toLocaleDateString('en-US', { ...options, year: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { ...options, year: 'numeric' })}`
 }
 
-function getTripStatus(startDate?: string | null, endDate?: string | null): 'upcoming' | 'active' | 'past' | null {
+export function getTripStatus(startDate?: string | null, endDate?: string | null): 'upcoming' | 'active' | 'past' | null {
   if (!startDate) return null
 
   const now = new Date()
@@ -67,62 +72,96 @@ export function TripCard({
   endDate,
   memberCount,
   roundCount,
+  isPast,
   className,
 }: TripCardProps) {
+  const [showEdit, setShowEdit] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
   const dateRange = formatDateRange(startDate, endDate)
   const status = getTripStatus(startDate, endDate)
 
   return (
-    <Link href={`/trip/${id}`}>
-      <Card
-        className={cn(
-          'p-4 transition-all duration-tap hover:border-accent/50 active:scale-[0.99]',
-          className
-        )}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-display text-lg font-bold text-text-0 truncate">
-                {name}
-              </h3>
-              {status === 'active' && (
-                <Badge variant="live">Active</Badge>
+    <>
+      <Link href={`/trip/${id}`}>
+        <Card
+          className={cn(
+            'p-4 transition-all duration-tap hover:border-accent/50 active:scale-[0.99]',
+            isPast && 'opacity-60',
+            className
+          )}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-display text-lg font-bold text-text-0 truncate">
+                  {name}
+                </h3>
+                {status === 'active' && (
+                  <Badge variant="live">Active</Badge>
+                )}
+                {status === 'upcoming' && (
+                  <Badge variant="press">Upcoming</Badge>
+                )}
+              </div>
+
+              {description && (
+                <p className="text-sm text-text-2 line-clamp-2 mb-2">
+                  {description}
+                </p>
               )}
+
+              <div className="flex items-center gap-4 text-xs text-text-2">
+                {dateRange && (
+                  <span className="flex items-center gap-1">
+                    <CalendarIcon />
+                    {dateRange}
+                  </span>
+                )}
+                {memberCount !== undefined && (
+                  <span className="flex items-center gap-1">
+                    <UsersIcon />
+                    {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                  </span>
+                )}
+                {roundCount !== undefined && roundCount > 0 && (
+                  <span className="flex items-center gap-1">
+                    <FlagIcon />
+                    {roundCount} {roundCount === 1 ? 'round' : 'rounds'}
+                  </span>
+                )}
+              </div>
             </div>
 
-            {description && (
-              <p className="text-sm text-text-2 line-clamp-2 mb-2">
-                {description}
-              </p>
-            )}
-
-            <div className="flex items-center gap-4 text-xs text-text-2">
-              {dateRange && (
-                <span className="flex items-center gap-1">
-                  <CalendarIcon />
-                  {dateRange}
-                </span>
-              )}
-              {memberCount !== undefined && (
-                <span className="flex items-center gap-1">
-                  <UsersIcon />
-                  {memberCount} {memberCount === 1 ? 'member' : 'members'}
-                </span>
-              )}
-              {roundCount !== undefined && roundCount > 0 && (
-                <span className="flex items-center gap-1">
-                  <FlagIcon />
-                  {roundCount} {roundCount === 1 ? 'round' : 'rounds'}
-                </span>
-              )}
+            <div className="flex items-center gap-1">
+              <TripCardMenu
+                onEdit={() => setShowEdit(true)}
+                onDelete={() => setShowDelete(true)}
+              />
+              <ChevronRightIcon />
             </div>
           </div>
+        </Card>
+      </Link>
 
-          <ChevronRightIcon />
-        </div>
-      </Card>
-    </Link>
+      {showEdit && (
+        <EditTripModal
+          tripId={id}
+          initialName={name}
+          initialDescription={description ?? null}
+          initialStartDate={startDate ?? null}
+          initialEndDate={endDate ?? null}
+          onClose={() => setShowEdit(false)}
+        />
+      )}
+
+      {showDelete && (
+        <DeleteTripDialog
+          tripId={id}
+          tripName={name}
+          onClose={() => setShowDelete(false)}
+        />
+      )}
+    </>
   )
 }
 
