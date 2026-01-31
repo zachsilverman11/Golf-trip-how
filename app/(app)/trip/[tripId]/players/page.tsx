@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { Card } from '@/components/ui/Card'
@@ -14,13 +14,19 @@ import {
   updatePlayerAction,
   deletePlayerAction,
 } from '@/lib/supabase/player-actions'
+import {
+  getPlayersMiniStatsAction,
+  type PlayerMiniStats,
+} from '@/lib/supabase/player-profile-actions'
 import type { DbPlayer } from '@/lib/supabase/types'
 
 export default function PlayersPage() {
   const params = useParams()
+  const router = useRouter()
   const tripId = params.tripId as string
 
   const [players, setPlayers] = useState<DbPlayer[]>([])
+  const [miniStats, setMiniStats] = useState<Record<string, PlayerMiniStats>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -28,12 +34,21 @@ export default function PlayersPage() {
   const [submitting, setSubmitting] = useState(false)
 
   const loadPlayers = async () => {
-    const result = await getPlayersAction(tripId)
-    if (result.error) {
-      setError(result.error)
+    const [playersResult, statsResult] = await Promise.all([
+      getPlayersAction(tripId),
+      getPlayersMiniStatsAction(tripId),
+    ])
+
+    if (playersResult.error) {
+      setError(playersResult.error)
     } else {
-      setPlayers(result.players)
+      setPlayers(playersResult.players)
     }
+
+    if (!statsResult.error && statsResult.stats) {
+      setMiniStats(statsResult.stats as Record<string, PlayerMiniStats>)
+    }
+
     setLoading(false)
   }
 
@@ -149,37 +164,84 @@ export default function PlayersPage() {
         </Card>
       ) : (
         <Card>
-          {players.map((player, idx) => (
-            <div
-              key={player.id}
-              className={`flex items-center justify-between px-4 py-3 ${
-                idx < players.length - 1 ? 'border-b border-stroke/60' : ''
-              }`}
-            >
-              <div>
-                <span className="font-medium text-text-0">{player.name}</span>
-                {player.handicap_index !== null && (
-                  <Badge variant="default" className="ml-2">
-                    HCP {player.handicap_index > 0 ? player.handicap_index : player.handicap_index < 0 ? `+${Math.abs(player.handicap_index)}` : '0'}
-                  </Badge>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
+          {players.map((player, idx) => {
+            const stats = miniStats[player.id]
+
+            return (
+              <div
+                key={player.id}
+                className={`flex items-center justify-between px-4 py-3 ${
+                  idx < players.length - 1 ? 'border-b border-stroke/60' : ''
+                }`}
+              >
+                {/* Tappable player name → profile */}
                 <button
-                  onClick={() => setEditingPlayer(player)}
-                  className="p-2 text-text-2 hover:text-text-1 transition-colors"
+                  onClick={() => router.push(`/player/${player.id}`)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left transition-colors hover:opacity-80"
                 >
-                  <EditIcon />
+                  {/* Mini avatar */}
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10">
+                    <span className="text-xs font-bold text-accent">
+                      {player.name
+                        .split(' ')
+                        .map(p => p[0])
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-text-0 truncate">
+                        {player.name}
+                      </span>
+                      {player.handicap_index !== null && (
+                        <Badge variant="default" className="shrink-0">
+                          HCP {player.handicap_index > 0 ? player.handicap_index : player.handicap_index < 0 ? `+${Math.abs(player.handicap_index)}` : '0'}
+                        </Badge>
+                      )}
+                    </div>
+                    {stats && (stats.roundsPlayed > 0 || stats.avgScore !== null) && (
+                      <div className="mt-0.5 flex items-center gap-2 text-xs text-text-2">
+                        {stats.roundsPlayed > 0 && (
+                          <span>{stats.roundsPlayed} rd{stats.roundsPlayed !== 1 ? 's' : ''}</span>
+                        )}
+                        {stats.avgScore !== null && (
+                          <>
+                            <span>·</span>
+                            <span>Avg {stats.avgScore}</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </button>
-                <button
-                  onClick={() => handleDeletePlayer(player.id)}
-                  className="p-2 text-text-2 hover:text-bad transition-colors"
-                >
-                  <TrashIcon />
-                </button>
+
+                {/* Action buttons */}
+                <div className="flex items-center gap-1 ml-2 shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setEditingPlayer(player)
+                    }}
+                    className="p-2 text-text-2 hover:text-text-1 transition-colors"
+                  >
+                    <EditIcon />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeletePlayer(player.id)
+                    }}
+                    className="p-2 text-text-2 hover:text-bad transition-colors"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </Card>
       )}
 
