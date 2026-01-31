@@ -31,7 +31,17 @@ export function PlayerEntry({
     const name = nameInput.value.trim()
     if (!name) return
 
-    const handicap = handicapInput?.value ? parseFloat(handicapInput.value) : null
+    let handicap: number | null = null
+    if (handicapInput?.value) {
+      const trimmed = handicapInput.value.trim()
+      if (trimmed.startsWith('+')) {
+        const num = parseFloat(trimmed.slice(1))
+        handicap = isNaN(num) ? null : -num // Plus handicaps stored as negative
+      } else {
+        const num = parseFloat(trimmed)
+        handicap = isNaN(num) ? null : num
+      }
+    }
 
     onAddPlayer(name, handicap)
 
@@ -93,8 +103,8 @@ export function PlayerEntry({
         />
         <input
           id="playerHandicap"
-          type="number"
-          step="0.1"
+          type="text"
+          inputMode="text"
           placeholder="Hdcp"
           onKeyDown={handleKeyDown}
           className={cn(

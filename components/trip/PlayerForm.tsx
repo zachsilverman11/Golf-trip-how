@@ -78,7 +78,7 @@ export function PlayerForm({
           </label>
           <input
             type="text"
-            inputMode="decimal"
+            inputMode="text"
             value={handicap}
             onChange={(e) => setHandicap(e.target.value)}
             placeholder="e.g., 12.4 or +2.0"
