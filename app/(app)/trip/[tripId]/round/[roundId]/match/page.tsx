@@ -265,7 +265,7 @@ export default function MatchPage() {
                     Press {press.pressNumber}
                   </div>
                   <div className="text-xs text-text-2">
-                    from hole {press.startingHole} • {formatMoney(press.stakePerMan)}/man
+                    from hole {press.startingHole}{press.endingHole < 18 ? ` →${press.endingHole}` : ''} • {formatMoney(press.stakePerMan)}/man
                   </div>
                 </div>
                 <div className="text-right">

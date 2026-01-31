@@ -74,17 +74,19 @@ interface PressStatusProps {
   pressNumber: number
   lead: number
   startingHole?: number // Optional: show "P1 from 8" instead of just "P1"
+  endingHole?: number // Optional: show "→9" when not 18
   size?: 'default' | 'large'
   className?: string
 }
 
 /**
- * Display press status badge: "P1 from 8: 1 DN"
+ * Display press status badge: "P1 from 5 →9: 1 DN" or "P2 from 12: A/S"
  */
 export function PressStatus({
   pressNumber,
   lead,
   startingHole,
+  endingHole,
   size = 'default',
   className,
 }: PressStatusProps) {
@@ -115,8 +117,14 @@ export function PressStatus({
     large: 'px-3 py-1 text-sm font-medium',
   }
 
-  // Build label: "P1" or "P1 from 8"
-  const label = startingHole ? `P${pressNumber} from ${startingHole}` : `P${pressNumber}`
+  // Build label: "P1", "P1 from 8", or "P1 from 5 →9"
+  let label = `P${pressNumber}`
+  if (startingHole) {
+    label = `P${pressNumber} from ${startingHole}`
+    if (endingHole && endingHole < 18) {
+      label += ` →${endingHole}`
+    }
+  }
 
   return (
     <span

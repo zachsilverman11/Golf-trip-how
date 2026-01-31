@@ -81,9 +81,14 @@ export function MatchStrip({
 
     // Add active press stakes (each press also has stake_per_man)
     for (const press of matchState.presses) {
-      if (press.startingHole <= currentHole && press.status === 'in_progress') {
+      if (
+        press.startingHole <= currentHole &&
+        press.endingHole >= currentHole &&
+        press.status === 'in_progress'
+      ) {
+        const endLabel = press.endingHole < 18 ? `, ends ${press.endingHole}` : ''
         items.push({
-          label: `Press ${press.pressNumber} (from ${press.startingHole})`,
+          label: `Press ${press.pressNumber} (from ${press.startingHole}${endLabel})`,
           amount: press.stakePerMan,
         })
         total += press.stakePerMan
@@ -98,9 +103,12 @@ export function MatchStrip({
     return calculateExposure(matchState)
   }, [matchState])
 
-  // Active presses for this hole
+  // Active presses for this hole (must be within press range)
   const activePresses = matchState.presses.filter(
-    (p) => p.startingHole <= currentHole && p.status === 'in_progress'
+    (p) =>
+      p.startingHole <= currentHole &&
+      p.endingHole >= currentHole &&
+      p.status === 'in_progress'
   )
 
   // Can add press only if match is still in progress
@@ -216,13 +224,14 @@ export function MatchStrip({
           {/* Main match status */}
           <MatchStatus lead={matchState.currentLead} label="Main" dormie={matchState.isDormie} />
 
-          {/* Press statuses with origin hole */}
+          {/* Press statuses with origin hole and ending hole */}
           {activePresses.map((press) => (
             <PressStatus
               key={press.id}
               pressNumber={press.pressNumber}
               lead={press.currentLead}
               startingHole={press.startingHole}
+              endingHole={press.endingHole}
             />
           ))}
         </div>
@@ -304,7 +313,11 @@ export function MatchStripCompact({
     if (matchState.isMatchClosed) return 0
     let total = matchState.stakePerMan
     for (const press of matchState.presses) {
-      if (press.startingHole <= currentHole && press.status === 'in_progress') {
+      if (
+        press.startingHole <= currentHole &&
+        press.endingHole >= currentHole &&
+        press.status === 'in_progress'
+      ) {
         total += press.stakePerMan
       }
     }

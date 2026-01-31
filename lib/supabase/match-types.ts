@@ -43,6 +43,7 @@ export interface DbPress {
   id: string
   match_id: string
   starting_hole: number
+  ending_hole: number // 9 for front-9 press, 18 for match/back-9 press
   stake_per_man: number // Frozen at creation, same as match stake_per_man
 
   // Press state
@@ -97,6 +98,7 @@ export interface PressState {
   id: string
   pressNumber: number // 1, 2, 3, etc.
   startingHole: number
+  endingHole: number // 9 for front-9 press, 18 for match/back-9 press
   stakePerMan: number // Same as match stake_per_man
   status: MatchStatus
   winner: MatchWinner
@@ -189,6 +191,7 @@ export interface CreateMatchInput {
 export interface AddPressInput {
   matchId: string
   startingHole: number
+  endingHole?: number // 9 for front-9, 18 for match/back-9 (defaults to 18)
   // Note: Presses ALWAYS inherit stake_per_man from the main match
 }
 

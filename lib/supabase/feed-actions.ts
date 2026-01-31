@@ -199,7 +199,7 @@ export async function getTripFeedAction(
           roundName: round.name,
           holeNumber: press.startingHole,
           players,
-          narrative: `${who} from hole ${press.startingHole} — $${press.stakePerMan}/man`,
+          narrative: `${who} from hole ${press.startingHole}${press.endingHole < 18 ? ` →${press.endingHole}` : ''} — $${press.stakePerMan}/man`,
           intensity: 'medium',
         })
       }
