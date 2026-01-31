@@ -1,4 +1,5 @@
 import { signOut } from '@/lib/supabase/auth-actions'
+import { PressLogo } from '@/components/ui/PressLogo'
 
 interface DashboardHeaderProps {
   userEmail?: string | null
@@ -13,11 +14,11 @@ export function DashboardHeader({ userEmail }: DashboardHeaderProps) {
   return (
     <div className="flex items-center justify-between">
       <div>
-        <h1 className="font-display text-2xl font-bold text-text-0 tracking-tight">
-          Golf Trip HQ
+        <h1 className="text-accent">
+          <PressLogo size="sm" />
         </h1>
         {name && (
-          <p className="text-sm text-text-2">
+          <p className="text-sm text-text-2 mt-1">
             Hey {name} 👋
           </p>
         )}

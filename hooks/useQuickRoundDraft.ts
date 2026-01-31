@@ -22,7 +22,7 @@ export interface QuickRoundDraft {
   teamAssignments: Record<string, 1 | 2>  // playerId -> team (1 or 2)
 }
 
-const STORAGE_KEY = 'golf_trip_hq_quick_round_draft'
+const STORAGE_KEY = 'press_quick_round_draft'
 
 const defaultDraft: QuickRoundDraft = {
   players: [],

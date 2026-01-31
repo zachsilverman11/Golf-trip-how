@@ -10,19 +10,19 @@ const config: Config = {
     extend: {
       colors: {
         // Backgrounds
-        'bg-0': '#0B1020',
-        'bg-1': '#111A2E',
-        'bg-2': '#182342',
-        'stroke': '#243255',
+        'bg-0': '#0A0A0A',
+        'bg-1': '#1C1C1E',
+        'bg-2': '#2C2C2E',
+        'stroke': '#3A3A3C',
         // Text
-        'text-0': '#F4F7FF',
-        'text-1': '#B7C3E3',
-        'text-2': '#7E8BB0',
+        'text-0': '#FAFAF9',
+        'text-1': '#D4D4D4',
+        'text-2': '#A1A1AA',
         // Accents
-        'accent': '#4DA3FF',
-        'good': '#3CE6B0',
-        'bad': '#FF5C7A',
-        'gold': '#FFC857',
+        'accent': '#F59E0B',
+        'good': '#10B981',
+        'bad': '#EF4444',
+        'gold': '#F59E0B',
       },
       fontFamily: {
         'display': ['var(--font-space-grotesk)', 'sans-serif'],

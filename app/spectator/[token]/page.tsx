@@ -134,7 +134,7 @@ export default function SpectatorPage() {
             Live Leaderboard
           </Badge>
           <h1 className="font-display text-2xl font-bold text-text-0">
-            {trip?.name || 'Golf Trip'}
+            {trip?.name || 'Press'}
           </h1>
           {trip?.description && (
             <p className="mt-1 text-text-2">{trip.description}</p>
@@ -230,7 +230,7 @@ export default function SpectatorPage() {
         {/* Powered by footer */}
         <div className="mt-8 text-center">
           <p className="text-xs text-text-2">
-            Powered by <span className="font-bold text-accent">Golf Trip HQ</span>
+            Powered by <span className="font-extrabold tracking-wider text-accent">PRESS</span>
           </p>
         </div>
       </LayoutContainer>

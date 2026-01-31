@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
 import './globals.css'
 
@@ -15,8 +15,21 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: 'Trip Caddie',
-  description: 'Golf trip scoring and leaderboards',
+  title: 'Press',
+  description: 'Always pressing. Live golf trip scoring, matches, and settlements.',
+  openGraph: {
+    title: 'Press',
+    description: 'Always pressing. Live golf trip scoring, matches, and settlements.',
+    siteName: 'Press',
+  },
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.svg',
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#0A0A0A',
 }
 
 export default function RootLayout({

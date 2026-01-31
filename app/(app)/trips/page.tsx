@@ -59,13 +59,16 @@ export default async function TripsPage() {
       {trips.length === 0 ? (
         <div>
           {/* Hero */}
-          <div className="relative overflow-hidden rounded-card border border-accent/20 bg-gradient-to-br from-accent/10 via-bg-1 to-bg-2 p-5 mb-5">
+          <div className="relative overflow-hidden rounded-card border border-accent/20 bg-gradient-to-br from-accent/5 via-bg-1 to-bg-2 p-5 mb-5">
             <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-accent/8 blur-3xl" />
             <div className="absolute -left-8 -bottom-8 h-32 w-32 rounded-full bg-good/6 blur-3xl" />
             <div className="relative">
-              <h2 className="font-display text-2xl font-bold text-text-0 leading-tight mb-2">
-                Every hole has a story.
+              <h2 className="font-display text-3xl font-extrabold tracking-widest text-accent leading-tight mb-1">
+                PRESS
               </h2>
+              <p className="text-text-2 text-xs font-medium uppercase tracking-wider mb-3">
+                Always pressing.
+              </p>
               <p className="text-text-1 text-sm leading-relaxed">
                 The press on 14 that changed everything. The three-putt that cost someone $50. The shot nobody will shut up about.
               </p>
