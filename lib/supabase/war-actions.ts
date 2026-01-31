@@ -265,6 +265,7 @@ export async function getWarTotalsAction(tripId: string): Promise<{
     // Filter to relevant formats
     const matchPlayRounds = rounds?.filter((r) => r.format === 'match_play') || []
     const pointsHiLoRounds = rounds?.filter((r) => r.format === 'points_hilo') || []
+    const scrambleRounds = rounds?.filter((r) => r.format === 'scramble') || []
 
     const totals: WarTotals = {
       competitionName,
@@ -483,6 +484,124 @@ export async function getWarTotalsAction(tripId: string): Promise<{
         roundFormat: 'Points Hi/Lo',
         teamAPoints: warATotal > warBTotal ? 1 : warATotal === warBTotal ? 0.5 : 0,
         teamBPoints: warBTotal > warATotal ? 1 : warATotal === warBTotal ? 0.5 : 0,
+      })
+    }
+
+    // ---- SCRAMBLE SCORING (1/0.5/0 per round based on team totals) ----
+    for (const round of scrambleRounds) {
+      if (round.status !== 'completed' && round.status !== 'in_progress') continue
+
+      // Get round data with groups and players
+      const { data: roundData, error: roundDataError } = await supabase
+        .from('rounds')
+        .select(`
+          id,
+          format,
+          tees (
+            id,
+            holes (*)
+          ),
+          groups (
+            id,
+            group_players (
+              id,
+              player_id,
+              team_number,
+              players (id, name)
+            )
+          )
+        `)
+        .eq('id', round.id)
+        .single()
+
+      if (roundDataError || !roundData) continue
+
+      const holes = (roundData.tees as any)?.holes as DbHole[] | undefined
+      const totalHoles = holes?.length || 18
+
+      // Build team rosters from group_players team_number
+      const team1Players: string[] = []
+      const team2Players: string[] = []
+
+      for (const group of roundData.groups || []) {
+        for (const gp of group.group_players || []) {
+          if (gp.team_number === 1) team1Players.push(gp.player_id)
+          if (gp.team_number === 2) team2Players.push(gp.player_id)
+        }
+      }
+
+      if (team1Players.length === 0 || team2Players.length === 0) continue
+
+      // In scramble, the first player of each team is the "captain"
+      // whose player_id holds the team score
+      const team1CaptainId = team1Players[0]
+      const team2CaptainId = team2Players[0]
+
+      // Get scores for both captains
+      const { data: scores, error: scoresError } = await supabase
+        .from('scores')
+        .select('player_id, hole_number, gross_strokes')
+        .eq('round_id', round.id)
+        .in('player_id', [team1CaptainId, team2CaptainId])
+
+      if (scoresError) continue
+
+      // Sum up team totals
+      let team1Total = 0
+      let team2Total = 0
+      let team1Holes = 0
+      let team2Holes = 0
+
+      for (const score of scores || []) {
+        if (score.gross_strokes === null) continue
+        if (score.player_id === team1CaptainId) {
+          team1Total += score.gross_strokes
+          team1Holes++
+        } else if (score.player_id === team2CaptainId) {
+          team2Total += score.gross_strokes
+          team2Holes++
+        }
+      }
+
+      if (team1Holes === 0 || team2Holes === 0) continue
+
+      // Map round teams to war teams
+      const team1WarTeams = team1Players
+        .map((pid) => playerTeamMap[pid])
+        .filter(Boolean)
+      const team2WarTeams = team2Players
+        .map((pid) => playerTeamMap[pid])
+        .filter(Boolean)
+
+      const team1IsWarA =
+        team1WarTeams.filter((t) => t === 'A').length >=
+        team1WarTeams.filter((t) => t === 'B').length
+      const team1WarTeam = team1IsWarA ? 'A' : 'B'
+
+      const warATotal = team1WarTeam === 'A' ? team1Total : team2Total
+      const warBTotal = team1WarTeam === 'A' ? team2Total : team1Total
+
+      // Lower score wins in scramble
+      if (warATotal < warBTotal) {
+        totals.teamA.points += 1
+        totals.teamA.wins++
+        totals.teamB.losses++
+      } else if (warBTotal < warATotal) {
+        totals.teamB.points += 1
+        totals.teamB.wins++
+        totals.teamA.losses++
+      } else {
+        totals.teamA.points += 0.5
+        totals.teamB.points += 0.5
+        totals.teamA.ties++
+        totals.teamB.ties++
+      }
+
+      totals.rounds.push({
+        roundName: round.name,
+        roundFormat: 'Scramble',
+        teamAPoints: warATotal < warBTotal ? 1 : warATotal === warBTotal ? 0.5 : 0,
+        teamBPoints: warBTotal < warATotal ? 1 : warATotal === warBTotal ? 0.5 : 0,
       })
     }
 

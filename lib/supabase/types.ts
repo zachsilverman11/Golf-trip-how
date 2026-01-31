@@ -115,7 +115,7 @@ export interface DbRound {
   date: string
   tee_time: string | null
   status: 'upcoming' | 'in_progress' | 'completed'
-  format: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
+  format: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford' | 'scramble'
   scoring_basis: 'gross' | 'net'
   created_at: string
   updated_at: string
@@ -189,7 +189,7 @@ export interface DbRoundSummary {
   date: string
   tee_time: string | null
   status: 'upcoming' | 'in_progress' | 'completed'
-  format: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
+  format: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford' | 'scramble'
   scoring_basis?: 'gross' | 'net'
 }
 

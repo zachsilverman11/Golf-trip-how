@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils'
 
-export type RoundFormat = 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
+export type RoundFormat = 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford' | 'scramble'
 
 interface FormatOption {
   value: RoundFormat
@@ -30,6 +30,11 @@ const formatOptions: FormatOption[] = [
     value: 'stableford',
     label: 'Stableford',
     description: 'Team points: par=1, birdie=3, eagle=5',
+  },
+  {
+    value: 'scramble',
+    label: 'Scramble',
+    description: 'Teams pick best shot each time. One score per team.',
   },
 ]
 
@@ -107,9 +112,10 @@ export function RoundFormatSelector({
 
 /**
  * Check if format requires team assignments
- * Only Points Hi/Lo requires teams for v1
+ * Points Hi/Lo requires teams for v1
+ * Scramble requires teams (2 teams, one score per team per hole)
  * Stableford works individually (team mode is optional/future)
  */
 export function formatRequiresTeams(format: RoundFormat): boolean {
-  return format === 'points_hilo'
+  return format === 'points_hilo' || format === 'scramble'
 }

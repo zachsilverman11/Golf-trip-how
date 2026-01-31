@@ -23,6 +23,9 @@ function shouldShowTeams(format: RoundFormat, playerCount: number): boolean {
   if (format === 'match_play') {
     return playerCount === 4  // 2-player match play is 1v1, no teams needed
   }
+  if (format === 'scramble') {
+    return playerCount >= 2  // Scramble always needs teams (at least 1 per team)
+  }
   return false
 }
 
@@ -35,6 +38,9 @@ function teamsRequired(format: RoundFormat, playerCount: number): boolean {
   }
   if (format === 'match_play' && playerCount === 4) {
     return true  // 4-player match play requires teams (2v2)
+  }
+  if (format === 'scramble') {
+    return true  // Scramble always requires teams
   }
   return false
 }
@@ -51,6 +57,11 @@ function getPlayerCountError(format: RoundFormat, playerCount: number): string |
   if (format === 'points_hilo') {
     if (playerCount !== 4 && playerCount > 0) {
       return 'Points Hi/Lo requires exactly 4 players'
+    }
+  }
+  if (format === 'scramble') {
+    if (playerCount < 2 && playerCount > 0) {
+      return 'Scramble requires at least 2 players (1 per team)'
     }
   }
   return null

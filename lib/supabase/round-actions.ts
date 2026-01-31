@@ -62,7 +62,7 @@ export interface CreateRoundInput {
   name: string
   date: string
   tee_time?: string | null  // Round-level tee time (TIMESTAMPTZ)
-  format?: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
+  format?: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford' | 'scramble'
   scoring_basis?: 'gross' | 'net'
 }
 
@@ -71,7 +71,7 @@ export interface UpdateRoundInput {
   date?: string
   tee_time?: string | null
   status?: 'upcoming' | 'in_progress' | 'completed'
-  format?: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
+  format?: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford' | 'scramble'
   scoring_basis?: 'gross' | 'net'
   tee_id?: string | null
 }
@@ -578,16 +578,23 @@ export async function createRoundWithGroupsAction(
   }
 
   // Validate team assignments for format rounds
-  // Only Points Hi/Lo requires teams for v1 (Stableford works individually)
-  const formatRequiresTeams = input.format === 'points_hilo'
-  if (formatRequiresTeams) {
+  const formatNeedsTeams = input.format === 'points_hilo' || input.format === 'scramble'
+  if (formatNeedsTeams) {
     const allPlayerIds = input.groups.flatMap(g => g.player_ids)
 
-    // Must have exactly 4 players for v1
-    if (allPlayerIds.length !== 4) {
+    // Points Hi/Lo requires exactly 4 players
+    if (input.format === 'points_hilo' && allPlayerIds.length !== 4) {
       return {
         success: false,
         error: 'Points Hi/Lo format requires exactly 4 players'
+      }
+    }
+
+    // Scramble requires at least 2 players (1 per team minimum)
+    if (input.format === 'scramble' && allPlayerIds.length < 2) {
+      return {
+        success: false,
+        error: 'Scramble format requires at least 2 players'
       }
     }
 
@@ -599,14 +606,21 @@ export async function createRoundWithGroupsAction(
       }
     }
 
-    // Validate 2 players per team
+    // Validate team counts
     const team1Count = allPlayerIds.filter(id => input.team_assignments![id] === 1).length
     const team2Count = allPlayerIds.filter(id => input.team_assignments![id] === 2).length
 
-    if (team1Count !== 2 || team2Count !== 2) {
+    if (input.format === 'points_hilo' && (team1Count !== 2 || team2Count !== 2)) {
       return {
         success: false,
         error: 'Each team must have exactly 2 players'
+      }
+    }
+
+    if (input.format === 'scramble' && (team1Count < 1 || team2Count < 1)) {
+      return {
+        success: false,
+        error: 'Each team must have at least 1 player'
       }
     }
   }

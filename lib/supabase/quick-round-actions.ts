@@ -13,7 +13,7 @@ export interface CreateQuickRoundInput {
   players: QuickRoundPlayer[]
   teeId: string | null
   courseName: string | null
-  format: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
+  format: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford' | 'scramble'
   scoringBasis: 'gross' | 'net'
   teeTime: string | null  // HH:MM format
   teamAssignments?: Record<string, 1 | 2>  // draftPlayerId -> team (1 or 2)
