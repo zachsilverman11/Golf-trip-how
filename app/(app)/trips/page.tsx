@@ -57,54 +57,41 @@ export default async function TripsPage() {
 
       {/* Empty state */}
       {trips.length === 0 ? (
-        <div className="-mx-4 -mt-6 flex min-h-[calc(100dvh-80px)] flex-col">
-          {/* Hero image section */}
-          <div className="relative h-[55dvh] min-h-[320px] w-full overflow-hidden">
+        <div className="-mx-4 -mt-6 fixed inset-0 flex flex-col overflow-hidden bg-bg-0">
+          {/* Hero image — fills entire screen */}
+          <div className="relative flex-1 w-full overflow-hidden">
             {/* Background image */}
             <img
               src="/hero-golf.jpg"
               alt=""
               className="absolute inset-0 h-full w-full object-cover"
             />
-            {/* Gradient overlay — dark at bottom for text */}
-            <div className="absolute inset-0 bg-gradient-to-t from-bg-0 via-bg-0/60 to-transparent" />
-            {/* Content overlay */}
-            <div className="absolute bottom-0 left-0 right-0 p-6 pb-8">
+            {/* Gradient overlay — dark at bottom for text + CTAs */}
+            <div className="absolute inset-0 bg-gradient-to-t from-bg-0 via-bg-0/50 to-bg-0/20" />
+            {/* All content pinned to bottom */}
+            <div className="absolute bottom-0 left-0 right-0 p-6 pb-10 safe-b">
               <h1 className="font-display text-5xl font-extrabold tracking-wider text-text-0 mb-1">
                 PRESS
               </h1>
-              <p className="text-accent text-sm font-semibold uppercase tracking-widest mb-4">
+              <p className="text-accent text-sm font-semibold uppercase tracking-widest mb-3">
                 Always pressing.
               </p>
-              <p className="text-text-1/80 text-[15px] leading-relaxed max-w-[300px]">
+              <p className="text-text-1/70 text-[15px] leading-relaxed max-w-[280px] mb-8">
                 The press on 14 that changed everything. The three-putt that cost someone $50.
               </p>
-            </div>
-          </div>
-
-          {/* CTAs — right below the fold */}
-          <div className="flex-1 flex flex-col justify-center px-4 py-6 space-y-3">
-            <Link href="/trips/new">
-              <Button size="large" className="w-full">
-                Start a Trip
-              </Button>
-            </Link>
-            <Link href="/quick-round">
-              <Button variant="secondary" className="w-full">
-                <BoltIcon />
-                Quick Round
-              </Button>
-            </Link>
-            <div className="flex items-center justify-center gap-6 pt-3">
-              <span className="text-text-2 text-xs flex items-center gap-1.5">
-                <ScoreIcon /> Match Play
-              </span>
-              <span className="text-text-2 text-xs flex items-center gap-1.5">
-                <MoneyIcon /> Settlement
-              </span>
-              <span className="text-text-2 text-xs flex items-center gap-1.5">
-                <TrophyIcon /> Team Wars
-              </span>
+              <div className="space-y-3">
+                <Link href="/trips/new">
+                  <Button size="large" className="w-full">
+                    Start a Trip
+                  </Button>
+                </Link>
+                <Link href="/quick-round">
+                  <Button variant="secondary" className="w-full">
+                    <BoltIcon />
+                    Quick Round
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
