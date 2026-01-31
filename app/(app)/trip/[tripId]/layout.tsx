@@ -31,8 +31,8 @@ export default function TripLayout({
     if (pathname.includes('/leaderboard')) return 'leaderboard'
     if (pathname.includes('/matches')) return 'matches'
     if (pathname.includes('/settle')) return 'settle'
-    if (pathname.includes('/feed')) return 'feed'
     if (pathname.includes('/round')) return 'round'
+    if (pathname === `/trip/${tripId}`) return 'trip'
     return 'trip'
   }
 
@@ -41,12 +41,12 @@ export default function TripLayout({
     : `/trip/${tripId}/round/new`
 
   const navItems = [
-    { id: 'trip', label: 'Trip', icon: NavIcons.Trip, href: `/trip/${tripId}` },
+    { id: 'home', label: 'Home', icon: NavIcons.Trip, href: '/trips' },
+    { id: 'trip', label: 'Trip', icon: NavIcons.Feed, href: `/trip/${tripId}` },
     { id: 'round', label: 'Round', icon: NavIcons.Round, href: roundHref },
     { id: 'leaderboard', label: 'Board', icon: NavIcons.Leaderboard, href: `/trip/${tripId}/leaderboard` },
     { id: 'matches', label: 'Matches', icon: NavIcons.Matches, href: `/trip/${tripId}/matches` },
     { id: 'settle', label: 'Settle', icon: NavIcons.Settle, href: `/trip/${tripId}/settle` },
-    { id: 'feed', label: 'Feed', icon: NavIcons.Feed, href: `/trip/${tripId}/feed` },
   ]
 
   return (
