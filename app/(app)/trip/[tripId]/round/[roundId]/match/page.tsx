@@ -95,6 +95,13 @@ export default function MatchPage() {
           backHref={`/trip/${tripId}/round/${roundId}`}
           backLabel="Back to Round"
         />
+        <div className="mt-4">
+          <Link href={`/trip/${tripId}/round/${roundId}/match/setup`}>
+            <Button variant="secondary" className="w-full">
+              Set Up Money Game
+            </Button>
+          </Link>
+        </div>
       </LayoutContainer>
     )
   }

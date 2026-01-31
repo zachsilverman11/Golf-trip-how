@@ -293,6 +293,23 @@ export default function ScorePage() {
         />
       )}
 
+      {/* No money game prompt (for Match Play without money game set up) */}
+      {!matchState && !formatState && round?.format === 'match_play' && (
+        <div className="mb-4 rounded-card border border-gold/30 bg-gold/5 p-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-gold text-lg">💰</span>
+              <span className="text-sm text-text-1">No money game yet</span>
+            </div>
+            <Link href={`/trip/${tripId}/round/${roundId}/match/setup`}>
+              <Button variant="secondary" size="default">
+                Set Up
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Scorer */}
       {players.length > 0 ? (
         <GroupScorer

@@ -283,13 +283,13 @@ export default async function RoundPage({ params }: RoundPageProps) {
                 </svg>
               </div>
               <div>
-                <p className="font-medium text-text-0">No Money Game Set Up</p>
+                <p className="font-medium text-text-0">No money game set up yet</p>
                 <p className="text-sm text-text-2">Add a money game to track bets for this match play round</p>
               </div>
             </div>
-            <Link href={`/trip/${params.tripId}/round/${params.roundId}/match`}>
+            <Link href={`/trip/${params.tripId}/round/${params.roundId}/match/setup`}>
               <Button variant="secondary" className="w-full">
-                Add Money Game
+                Set Up Money Game
               </Button>
             </Link>
           </Card>
