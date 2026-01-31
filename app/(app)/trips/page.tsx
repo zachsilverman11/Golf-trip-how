@@ -57,58 +57,54 @@ export default async function TripsPage() {
 
       {/* Empty state */}
       {trips.length === 0 ? (
-        <div className="py-8">
+        <div>
           {/* Hero */}
-          <div className="relative overflow-hidden rounded-card border border-accent/20 bg-gradient-to-br from-accent/10 via-bg-1 to-bg-2 p-6 mb-8">
+          <div className="relative overflow-hidden rounded-card border border-accent/20 bg-gradient-to-br from-accent/10 via-bg-1 to-bg-2 p-5 mb-5">
             <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-accent/8 blur-3xl" />
             <div className="absolute -left-8 -bottom-8 h-32 w-32 rounded-full bg-good/6 blur-3xl" />
             <div className="relative">
-              <h2 className="font-display text-3xl font-bold text-text-0 leading-tight mb-3">
-                Every hole has<br />a story.
+              <h2 className="font-display text-2xl font-bold text-text-0 leading-tight mb-2">
+                Every hole has a story.
               </h2>
-              <p className="text-text-1 text-base leading-relaxed max-w-sm">
-                The press on 14 that changed everything. The three-putt 
-                that cost someone $50. The shot nobody will ever shut up about.
-              </p>
-              <p className="text-text-2 text-sm mt-3">
-                This is where it all lives.
+              <p className="text-text-1 text-sm leading-relaxed">
+                The press on 14 that changed everything. The three-putt that cost someone $50. The shot nobody will shut up about.
               </p>
             </div>
           </div>
 
-          {/* Feature highlights */}
-          <div className="space-y-4 mb-8">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+          {/* Feature highlights — compact */}
+          <div className="space-y-3 mb-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
                 <ScoreIcon />
               </div>
               <div>
-                <p className="font-display font-bold text-text-0">Live scoring, real stakes</p>
-                <p className="text-sm text-text-2">Track every hole across your group. Match play, presses, team games — all wired up.</p>
+                <p className="text-sm font-bold text-text-0">Live scoring, real stakes</p>
+                <p className="text-xs text-text-2">Match play, presses, team games — all wired up.</p>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold/10 text-gold">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gold/10 text-gold">
                 <MoneyIcon />
               </div>
               <div>
-                <p className="font-display font-bold text-text-0">Know who owes who</p>
-                <p className="text-sm text-text-2">Per-person settlement. No napkin math. No arguments. Just pay up.</p>
+                <p className="text-sm font-bold text-text-0">Know who owes who</p>
+                <p className="text-xs text-text-2">Per-person settlement. No napkin math. Just pay up.</p>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-good/10 text-good">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-good/10 text-good">
                 <TrophyIcon />
               </div>
               <div>
-                <p className="font-display font-bold text-text-0">Ryder Cup your trip</p>
-                <p className="text-sm text-text-2">Split into teams. Every round earns points. Crown a champion at the end.</p>
+                <p className="text-sm font-bold text-text-0">Ryder Cup your trip</p>
+                <p className="text-xs text-text-2">Teams. Points. A champion at the end.</p>
               </div>
             </div>
           </div>
 
           {/* CTAs */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             <Link href="/trips/new">
               <Button size="large" className="w-full">
                 Start Your Trip
