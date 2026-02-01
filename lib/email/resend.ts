@@ -33,7 +33,7 @@ export async function sendEmail(params: SendEmailParams): Promise<{ success: boo
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: \`Bearer \${apiKey}\`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         from,
@@ -48,7 +48,7 @@ export async function sendEmail(params: SendEmailParams): Promise<{ success: boo
     if (!response.ok) {
       const error = await response.text()
       console.error('Resend API error:', error)
-      return { success: false, error: \`Email send failed: \${response.status}\` }
+      return { success: false, error: `Email send failed: ${response.status}` }
     }
 
     const data: ResendResponse = await response.json()
