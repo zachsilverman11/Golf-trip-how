@@ -16,6 +16,7 @@ import { formatMoney } from '@/lib/match-utils'
 import { calculateJunkSettlement, formatJunkValue } from '@/lib/junk-utils'
 import { JUNK_TYPES, type RoundJunkConfig, type DbJunkBet, type RoundJunkSettlement } from '@/lib/junk-types'
 import { Badge } from '@/components/ui/Badge'
+import { ShareButton } from '@/components/ui/ShareButton'
 import { cn } from '@/lib/utils'
 import type { TripFormatStandings } from '@/lib/format-types'
 import type { DbPlayer } from '@/lib/supabase/types'
@@ -93,48 +94,75 @@ export default function SettlePage() {
     loadData()
   }, [tripId])
 
+  // Calculate grand total for hero number
+  const topWinner = playerTotals.length > 0
+    ? playerTotals.reduce((best, p) => p.totalWinnings > best.totalWinnings ? p : best, playerTotals[0])
+    : null
+  const topLoser = playerTotals.length > 0
+    ? playerTotals.reduce((worst, p) => p.totalWinnings < worst.totalWinnings ? p : worst, playerTotals[0])
+    : null
+
+  // Build share text
+  const buildShareText = () => {
+    if (playerTotals.length === 0) return '💰 Trip Money — No games played yet'
+    const lines = playerTotals.map((p) => {
+      const prefix = p.totalWinnings > 0 ? '+' : ''
+      return `${p.playerName}: ${prefix}${formatMoney(p.totalWinnings)}`
+    })
+    return `💰 Trip Money\n${lines.join('\n')}`
+  }
+
   if (loading) {
     return (
-      <LayoutContainer className="py-6">
-        <div className="mb-6">
-          <Link
-            href={`/trip/${tripId}`}
-            className="mb-1 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
-          >
-            <BackIcon />
-            Back to trip
-          </Link>
-          <h1 className="font-display text-2xl font-bold text-text-0">
-            Trip Money
-          </h1>
-        </div>
-        <div className="text-center text-text-2">Loading...</div>
-      </LayoutContainer>
+      <div className="min-h-screen bg-bg-0">
+        <LayoutContainer className="py-6">
+          <div className="mb-6">
+            <div className="h-4 w-20 rounded bg-bg-2 animate-pulse mb-2" />
+            <div className="h-7 w-36 rounded bg-bg-2 animate-pulse" />
+          </div>
+          {/* Skeleton hero */}
+          <div className="rounded-xl bg-bg-1 border border-stroke/40 p-6 mb-4 animate-pulse">
+            <div className="h-12 w-24 rounded bg-bg-2 mx-auto mb-2" />
+            <div className="h-4 w-32 rounded bg-bg-2 mx-auto" />
+          </div>
+          {/* Skeleton rows */}
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="mb-2 rounded-xl bg-bg-1 border border-stroke/40 p-4 animate-pulse">
+              <div className="flex justify-between">
+                <div className="h-5 w-24 rounded bg-bg-2" />
+                <div className="h-5 w-16 rounded bg-bg-2" />
+              </div>
+            </div>
+          ))}
+        </LayoutContainer>
+      </div>
     )
   }
 
   if (error) {
     return (
-      <LayoutContainer className="py-6">
-        <div className="mb-6">
-          <Link
-            href={`/trip/${tripId}`}
-            className="mb-1 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
-          >
-            <BackIcon />
-            Back to trip
-          </Link>
-          <h1 className="font-display text-2xl font-bold text-text-0">
-            Trip Money
-          </h1>
-        </div>
-        <ErrorCard
-          title="Unable to Load Settlements"
-          message="Settlement data isn't available yet. Please try again later."
-          backHref={`/trip/${tripId}`}
-          backLabel="Back to Trip"
-        />
-      </LayoutContainer>
+      <div className="min-h-screen bg-bg-0">
+        <LayoutContainer className="py-6">
+          <div className="mb-6">
+            <Link
+              href={`/trip/${tripId}`}
+              className="mb-2 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
+            >
+              <BackIcon />
+              Back to trip
+            </Link>
+            <h1 className="font-display text-2xl font-bold text-text-0">
+              Trip Money
+            </h1>
+          </div>
+          <ErrorCard
+            title="Unable to Load Settlements"
+            message="Settlement data isn't available yet. Please try again later."
+            backHref={`/trip/${tripId}`}
+            backLabel="Back to Trip"
+          />
+        </LayoutContainer>
+      </div>
     )
   }
 
@@ -143,136 +171,187 @@ export default function SettlePage() {
     (formatStandings.pointsHiLoRoundCount > 0 || formatStandings.stablefordRoundCount > 0)
 
   return (
-    <LayoutContainer className="py-6">
-      <div className="mb-6">
-        <Link
-          href={`/trip/${tripId}`}
-          className="mb-1 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
-        >
-          <BackIcon />
-          Back to trip
-        </Link>
-        <h1 className="font-display text-2xl font-bold text-text-0">
-          Trip Money
-        </h1>
-      </div>
-
-      {/* Team Competition Totals (if enabled and has data) */}
-      {warTotals && (warTotals.teamA.points > 0 || warTotals.teamB.points > 0 || (warTotals.rounds && warTotals.rounds.length > 0)) && (
-        <WarTotalsCard totals={warTotals} className="mb-4" />
-      )}
-
-      {/* Format Standings (if any format rounds played) */}
-      {hasFormatData && (
-        <FormatStandingsCard standings={formatStandings} className="mb-4" />
-      )}
-
-      {/* Junk/Side Bet Settlements */}
-      {junkSettlements.length > 0 && (
-        <JunkSettlementCard settlements={junkSettlements} className="mb-4" />
-      )}
-
-      {!hasMoneyData ? (
-        <Card className="p-8 text-center">
-          <div className="mb-4 text-4xl opacity-50">
-            <span role="img" aria-label="money">💰</span>
+    <div className="min-h-screen bg-bg-0">
+      <LayoutContainer className="py-6 pb-safe">
+        {/* Header */}
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <Link
+              href={`/trip/${tripId}`}
+              className="mb-2 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
+            >
+              <BackIcon />
+              Back to trip
+            </Link>
+            <h1 className="font-display text-2xl font-bold text-text-0">
+              Trip Money
+            </h1>
           </div>
-          <h2 className="mb-2 font-display text-xl font-bold text-text-0">
-            No Completed Money Games Yet
-          </h2>
-          <p className="text-text-2">
-            Complete some money games to see trip standings here.
-          </p>
-        </Card>
-      ) : (
-        <>
-          {/* Summary Card */}
-          <Card className="p-4 mb-4">
-            <h2 className="font-display font-bold text-text-0 mb-3">
-              Standings
-            </h2>
-            <p className="text-xs text-text-2 mb-4">
-              All amounts are per player. Click a row to see details.
+          {hasMoneyData && (
+            <ShareButton
+              title="Trip Money"
+              text={buildShareText()}
+            />
+          )}
+        </div>
+
+        {/* ── Hero Number ── */}
+        {hasMoneyData && topWinner && topWinner.totalWinnings > 0 && (
+          <div className="mb-6 rounded-2xl bg-gradient-to-br from-bg-1 to-bg-2 border border-stroke/40 p-6 text-center animate-fadeIn">
+            <p className="text-xs text-text-2 uppercase tracking-widest mb-2">Top Earner</p>
+            <p className="font-display text-lg font-bold text-text-0 mb-1">
+              {topWinner.playerName}
             </p>
+            <p className="font-display text-4xl font-extrabold text-good tabular-nums">
+              +{formatMoney(topWinner.totalWinnings)}
+            </p>
+            {topLoser && topLoser.totalWinnings < 0 && (
+              <p className="text-xs text-text-2 mt-3">
+                {topLoser.playerName} owes the most: <span className="text-bad font-medium">{formatMoney(topLoser.totalWinnings)}</span>
+              </p>
+            )}
+          </div>
+        )}
 
-            <div className="space-y-2">
-              {playerTotals.map((player, index) => {
-                const isExpanded = expandedPlayer === player.playerId
-                const isPositive = player.totalWinnings > 0
-                const isNegative = player.totalWinnings < 0
+        {/* Team Competition Totals (if enabled and has data) */}
+        {warTotals && (warTotals.teamA.points > 0 || warTotals.teamB.points > 0 || (warTotals.rounds && warTotals.rounds.length > 0)) && (
+          <WarTotalsCard totals={warTotals} className="mb-4" />
+        )}
 
-                return (
-                  <div key={player.playerId}>
-                    <button
-                      onClick={() => setExpandedPlayer(isExpanded ? null : player.playerId)}
-                      className={cn(
-                        'w-full flex items-center justify-between p-3 rounded-lg transition-colors text-left',
-                        isExpanded ? 'bg-accent/10' : 'bg-bg-2 hover:bg-bg-2/80'
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className={cn(
-                          'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold',
-                          index === 0 && isPositive ? 'bg-gold text-bg-0' : 'bg-bg-1 text-text-2'
+        {/* Format Standings (if any format rounds played) */}
+        {hasFormatData && (
+          <FormatStandingsCard standings={formatStandings} className="mb-4" />
+        )}
+
+        {/* Junk/Side Bet Settlements */}
+        {junkSettlements.length > 0 && (
+          <JunkSettlementCard settlements={junkSettlements} className="mb-4" />
+        )}
+
+        {!hasMoneyData ? (
+          <div className="rounded-2xl bg-bg-1 border border-stroke/40 p-8 text-center">
+            <div className="mb-4 text-5xl">💰</div>
+            <h2 className="mb-2 font-display text-xl font-bold text-text-0">
+              No Money Games Yet
+            </h2>
+            <p className="text-text-2 text-sm mb-6 max-w-[260px] mx-auto">
+              Complete some money games and the standings will appear here.
+            </p>
+            <Link href={`/trip/${tripId}/round/new`}>
+              <button className="rounded-xl bg-accent px-6 py-3 font-display font-bold text-bg-0 text-sm active:scale-[0.98] transition-transform">
+                Start a Round →
+              </button>
+            </Link>
+          </div>
+        ) : (
+          <>
+            {/* Standings Table */}
+            <div className="mb-4 rounded-xl bg-bg-1 border border-stroke/40 overflow-hidden">
+              <div className="px-4 py-3 border-b border-stroke/30">
+                <h2 className="font-display font-bold text-text-0">
+                  Standings
+                </h2>
+                <p className="text-[11px] text-text-2 mt-0.5">
+                  Tap a player to see round-by-round breakdown
+                </p>
+              </div>
+
+              <div className="divide-y divide-stroke/20">
+                {playerTotals.map((player, index) => {
+                  const isExpanded = expandedPlayer === player.playerId
+                  const isPositive = player.totalWinnings > 0
+                  const isNegative = player.totalWinnings < 0
+
+                  return (
+                    <div key={player.playerId}>
+                      <button
+                        onClick={() => setExpandedPlayer(isExpanded ? null : player.playerId)}
+                        className={cn(
+                          'w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors',
+                          isExpanded ? 'bg-accent/5' : 'active:bg-bg-2'
+                        )}
+                      >
+                        {/* Rank badge */}
+                        <div className={cn(
+                          'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                          index === 0 && isPositive ? 'bg-gold text-bg-0' : 'bg-bg-2 text-text-2'
                         )}>
-                          {index + 1}
-                        </span>
-                        <span className="font-medium text-text-0">
+                          {index === 0 && isPositive ? '👑' : index + 1}
+                        </div>
+
+                        <span className="flex-1 font-medium text-text-0">
                           {player.playerName}
                         </span>
-                      </div>
-                      <div className={cn(
-                        'font-bold',
-                        isPositive && 'text-good',
-                        isNegative && 'text-bad',
-                        !isPositive && !isNegative && 'text-text-2'
-                      )}>
-                        {isPositive && '+'}{formatMoney(player.totalWinnings)}
-                      </div>
-                    </button>
 
-                    {/* Expanded details */}
-                    {isExpanded && player.matchResults.length > 0 && (
-                      <div className="mt-2 ml-9 space-y-1">
-                        {player.matchResults.map((result, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center justify-between text-xs py-1.5 px-2 rounded bg-bg-1"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <span className="text-text-1">{result.roundName}</span>
-                              <span className="text-text-2 ml-2">{result.description}</span>
-                            </div>
-                            <span className={cn(
-                              'font-medium ml-2',
-                              result.amount > 0 ? 'text-good' : 'text-bad'
-                            )}>
-                              {result.amount > 0 && '+'}{formatMoney(result.amount)}
-                            </span>
+                        <span className={cn(
+                          'font-display text-lg font-bold tabular-nums',
+                          isPositive && 'text-good',
+                          isNegative && 'text-bad',
+                          !isPositive && !isNegative && 'text-text-2'
+                        )}>
+                          {isPositive && '+'}{formatMoney(player.totalWinnings)}
+                        </span>
+
+                        {/* Expand indicator */}
+                        <svg
+                          className={cn(
+                            'h-4 w-4 text-text-2/40 transition-transform',
+                            isExpanded && 'rotate-180'
+                          )}
+                          fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                      </button>
+
+                      {/* Expanded round details */}
+                      {isExpanded && player.matchResults.length > 0 && (
+                        <div className="px-4 pb-3 animate-fadeIn">
+                          <div className="ml-11 space-y-1">
+                            {player.matchResults.map((result, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center justify-between text-xs py-2 px-3 rounded-lg bg-bg-2/50"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-text-1 font-medium">{result.roundName}</span>
+                                  <span className="text-text-2/60 ml-1.5">{result.description}</span>
+                                </div>
+                                <span className={cn(
+                                  'font-bold ml-2 tabular-nums',
+                                  result.amount > 0 ? 'text-good' : 'text-bad'
+                                )}>
+                                  {result.amount > 0 && '+'}{formatMoney(result.amount)}
+                                </span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          </Card>
 
-          {/* Settlement Info */}
-          <Card className="p-4">
-            <h2 className="font-display font-bold text-text-0 mb-3">
-              Settlement
-            </h2>
-            <p className="text-sm text-text-2 mb-3">
-              Based on the standings above, here&apos;s who owes what:
-            </p>
-
-            <SettlementMatrix playerTotals={playerTotals} />
-          </Card>
-        </>
-      )}
-    </LayoutContainer>
+            {/* Settlement Matrix */}
+            <div className="rounded-xl bg-bg-1 border border-stroke/40 overflow-hidden">
+              <div className="px-4 py-3 border-b border-stroke/30">
+                <h2 className="font-display font-bold text-text-0">
+                  Who Pays Who
+                </h2>
+                <p className="text-[11px] text-text-2 mt-0.5">
+                  Simplified payments to square up
+                </p>
+              </div>
+              <div className="p-4">
+                <SettlementMatrix playerTotals={playerTotals} />
+              </div>
+            </div>
+          </>
+        )}
+      </LayoutContainer>
+    </div>
   )
 }
 
@@ -291,7 +370,7 @@ function FormatStandingsCard({
   const hasStableford = standings.stablefordRoundCount > 0
 
   return (
-    <Card className={cn('p-4', className)}>
+    <div className={cn('rounded-xl bg-bg-1 border border-stroke/40 p-4', className)}>
       <h2 className="font-display font-bold text-text-0 mb-1">
         Format Standings
       </h2>
@@ -314,7 +393,7 @@ function FormatStandingsCard({
                 <div
                   key={player.playerId}
                   className={cn(
-                    'flex items-center gap-1.5 px-2 py-1 rounded-full text-xs',
+                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs',
                     idx === 0 ? 'bg-gold/15 text-gold' : 'bg-bg-2 text-text-1'
                   )}
                 >
@@ -343,7 +422,7 @@ function FormatStandingsCard({
                 <div
                   key={player.playerId}
                   className={cn(
-                    'flex items-center gap-1.5 px-2 py-1 rounded-full text-xs',
+                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs',
                     idx === 0 ? 'bg-gold/15 text-gold' : 'bg-bg-2 text-text-1'
                   )}
                 >
@@ -356,7 +435,7 @@ function FormatStandingsCard({
           </div>
         )}
       </div>
-    </Card>
+    </div>
   )
 }
 
@@ -376,9 +455,12 @@ function SettlementMatrix({ playerTotals }: { playerTotals: PlayerMoneyTotal[] }
 
   if (winners.length === 0 || losers.length === 0) {
     return (
-      <p className="text-sm text-text-2 italic">
-        No settlements needed - all players are even.
-      </p>
+      <div className="text-center py-4">
+        <div className="text-2xl mb-2">🤝</div>
+        <p className="text-sm text-text-2">
+          All players are even — no settlements needed!
+        </p>
+      </div>
     )
   }
 
@@ -406,20 +488,36 @@ function SettlementMatrix({ playerTotals }: { playerTotals: PlayerMoneyTotal[] }
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       {settlements.map((s, idx) => (
         <div
           key={idx}
-          className="flex items-center justify-between bg-bg-2 rounded-lg p-3"
+          className="flex items-center gap-3 rounded-xl bg-bg-2 p-3.5 animate-fadeIn"
+          style={{ animationDelay: `${idx * 100}ms` }}
         >
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-medium text-text-0">{s.from}</span>
-            <span className="text-text-2">→</span>
-            <span className="font-medium text-text-0">{s.to}</span>
+          {/* From */}
+          <div className="flex-1 min-w-0">
+            <span className="font-medium text-text-0 text-sm">{s.from}</span>
           </div>
-          <span className="font-bold text-accent">
-            {formatMoney(s.amount)}
-          </span>
+
+          {/* Arrow */}
+          <div className="flex items-center gap-2 shrink-0">
+            <svg className="h-4 w-4 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+          </div>
+
+          {/* To */}
+          <div className="flex-1 min-w-0 text-right">
+            <span className="font-medium text-text-0 text-sm">{s.to}</span>
+          </div>
+
+          {/* Amount */}
+          <div className="shrink-0 rounded-lg bg-accent/15 px-3 py-1.5">
+            <span className="font-display font-bold text-accent tabular-nums">
+              {formatMoney(s.amount)}
+            </span>
+          </div>
         </div>
       ))}
     </div>
@@ -463,7 +561,7 @@ function JunkSettlementCard({
   )
 
   return (
-    <Card className={cn('p-4', className)}>
+    <div className={cn('rounded-xl bg-bg-1 border border-stroke/40 p-4', className)}>
       <div className="flex items-center gap-2 mb-1">
         <h2 className="font-display font-bold text-text-0">Side Bets</h2>
         <Badge variant="gold">
@@ -481,7 +579,7 @@ function JunkSettlementCard({
           return (
             <div
               key={player.playerId}
-              className="flex items-center justify-between bg-bg-2 rounded-lg p-2.5"
+              className="flex items-center justify-between bg-bg-2 rounded-lg p-3"
             >
               <span className="font-medium text-text-0 text-sm">
                 {player.playerName}
@@ -501,7 +599,7 @@ function JunkSettlementCard({
 
       {/* Per-round breakdown */}
       {settlements.length > 1 && (
-        <div className="mt-3 pt-3 border-t border-stroke">
+        <div className="mt-3 pt-3 border-t border-stroke/30">
           <p className="text-xs text-text-2 mb-2">Per Round</p>
           {settlements.map((settlement) => (
             <div key={settlement.roundId} className="mb-2">
@@ -528,7 +626,7 @@ function JunkSettlementCard({
           ))}
         </div>
       )}
-    </Card>
+    </div>
   )
 }
 
