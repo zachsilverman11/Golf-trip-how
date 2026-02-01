@@ -6,15 +6,18 @@ import { LayoutContainer, Button } from '@/components/ui'
 import { BackButton } from '@/components/ui/BackButton'
 import {
   CourseSearch,
-  TeeSelector,
   ReviewScorecard,
   ManualEntry,
   SavedCourseData,
 } from '@/components/course'
-import { ApiSearchResult, ApiCourse, ApiTee } from '@/lib/api/types'
+import { ApiCourse, ApiTee } from '@/lib/api/types'
 import { saveCourseAction } from '@/lib/supabase/actions'
 
-type Step = 'search' | 'tee' | 'review' | 'manual' | 'saving' | 'done' | 'error'
+/**
+ * Inline tee selection in CourseSearch means we skip the old 'tee' step.
+ * Flow: search (with inline tees) → review → saving → done
+ */
+type Step = 'search' | 'review' | 'manual' | 'saving' | 'done' | 'error'
 
 interface SaveResult {
   courseId?: string
@@ -25,18 +28,13 @@ interface SaveResult {
 export default function NewCoursePage() {
   const router = useRouter()
   const [step, setStep] = useState<Step>('search')
-  const [selectedSearch, setSelectedSearch] = useState<ApiSearchResult | null>(null)
   const [selectedCourse, setSelectedCourse] = useState<ApiCourse | null>(null)
   const [selectedTee, setSelectedTee] = useState<ApiTee | null>(null)
   const [savedData, setSavedData] = useState<SavedCourseData | null>(null)
   const [saveResult, setSaveResult] = useState<SaveResult | null>(null)
 
-  const handleSearchSelect = (course: ApiSearchResult) => {
-    setSelectedSearch(course)
-    setStep('tee')
-  }
-
-  const handleTeeSelect = (course: ApiCourse, tee: ApiTee) => {
+  /** CourseSearch now returns course + tee inline */
+  const handleSearchSelect = (course: ApiCourse, tee: ApiTee) => {
     setSelectedCourse(course)
     setSelectedTee(tee)
     setStep('review')
@@ -78,7 +76,6 @@ export default function NewCoursePage() {
 
   const handleReset = () => {
     setStep('search')
-    setSelectedSearch(null)
     setSelectedCourse(null)
     setSelectedTee(null)
     setSavedData(null)
@@ -88,7 +85,7 @@ export default function NewCoursePage() {
   return (
     <div className="py-8">
       <LayoutContainer>
-        {/* Search Step */}
+        {/* Search Step (with inline tee selection) */}
         {step === 'search' && (
           <div>
             <div className="mb-4">
@@ -104,32 +101,19 @@ export default function NewCoursePage() {
           </div>
         )}
 
-        {/* Tee Selection Step */}
-        {step === 'tee' && selectedSearch && (
-          <TeeSelector
-            courseId={selectedSearch.id}
-            courseName={selectedSearch.course_name || selectedSearch.club_name || 'Course'}
-            onSelect={handleTeeSelect}
-            onBack={() => setStep('search')}
-          />
-        )}
-
         {/* Review Scorecard Step */}
         {step === 'review' && selectedCourse && selectedTee && (
           <ReviewScorecard
             course={selectedCourse}
             tee={selectedTee}
             onSave={handleSave}
-            onBack={() => setStep('tee')}
+            onBack={() => setStep('search')}
           />
         )}
 
         {/* Manual Entry Step */}
         {step === 'manual' && (
-          <ManualEntry
-            onSave={handleSave}
-            onBack={() => setStep('search')}
-          />
+          <ManualEntry onSave={handleSave} onBack={() => setStep('search')} />
         )}
 
         {/* Saving Step */}
@@ -180,9 +164,7 @@ export default function NewCoursePage() {
             <h2 className="font-display text-xl font-semibold text-text-0 mb-2">
               Course Saved!
             </h2>
-            <p className="text-body text-text-1 mb-1">
-              {savedData.courseName}
-            </p>
+            <p className="text-body text-text-1 mb-1">{savedData.courseName}</p>
             <p className="text-sm text-text-2 mb-6">
               {savedData.teeName} Tees — {savedData.rating} / {savedData.slope}
             </p>
