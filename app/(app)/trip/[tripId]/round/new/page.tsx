@@ -15,8 +15,10 @@ import {
   TeamAssignmentForm,
   isTeamAssignmentValid,
   formatRequiresTeams,
+  JunkConfigForm,
   type RoundFormat,
 } from '@/components/round'
+import { DEFAULT_JUNK_CONFIG, type RoundJunkConfig } from '@/lib/junk-types'
 import { getPlayersAction } from '@/lib/supabase/player-actions'
 import { createRoundWithGroupsAction } from '@/lib/supabase/round-actions'
 import { createMatchAction } from '@/lib/supabase/match-actions'
@@ -50,6 +52,9 @@ export default function NewRoundPage() {
 
   // Team assignments (for Points Hi/Lo and Stableford)
   const [teamAssignments, setTeamAssignments] = useState<Record<string, 1 | 2>>({})
+
+  // Junk/side bets config
+  const [junkConfig, setJunkConfig] = useState<RoundJunkConfig>({ ...DEFAULT_JUNK_CONFIG })
 
   // Match setup (only for match_play)
   const [matchEnabled, setMatchEnabled] = useState(false)
@@ -190,6 +195,7 @@ export default function NewRoundPage() {
         player_ids: g.playerIds,
       })),
       team_assignments: requiresTeams ? teamAssignments : undefined,
+      junk_config: junkConfig.enabled ? junkConfig : null,
     })
 
     if (result.success && result.roundId) {
@@ -548,6 +554,16 @@ export default function NewRoundPage() {
                 players={players.filter((p) => assignedPlayerIds.has(p.id))}
               />
             )}
+          </div>
+        )}
+
+        {/* Junk/Side Bets */}
+        {assignedPlayerIds.size >= 2 && (
+          <div className="mb-4">
+            <JunkConfigForm
+              config={junkConfig}
+              onChange={setJunkConfig}
+            />
           </div>
         )}
 

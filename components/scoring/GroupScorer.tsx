@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { HoleNavigator } from './HoleNavigator'
@@ -28,6 +28,10 @@ interface GroupScorerProps {
   scores: { [playerId: string]: { [hole: number]: number | null } }
   onScoreChange: (playerId: string, hole: number, score: number | null) => void
   onComplete?: () => void
+  /** Called when hole or selected player changes (for junk bets overlay) */
+  onStateChange?: (state: { currentHole: number; selectedPlayerId: string | null; par: number }) => void
+  /** Extra content to render between player rows and the keypad */
+  extraContent?: React.ReactNode
   className?: string
 }
 
@@ -38,6 +42,8 @@ export function GroupScorer({
   scores,
   onScoreChange,
   onComplete,
+  onStateChange,
+  extraContent,
   className,
 }: GroupScorerProps) {
   const [currentHole, setCurrentHole] = useState(1)
@@ -52,6 +58,15 @@ export function GroupScorer({
     strokeIndex: currentHole,
     yards: null,
   }
+
+  // Notify parent of state changes (for junk bets overlay)
+  useEffect(() => {
+    onStateChange?.({
+      currentHole,
+      selectedPlayerId,
+      par: currentHoleInfo.par,
+    })
+  }, [currentHole, selectedPlayerId, currentHoleInfo.par])
 
   // Calculate completed holes (where all players have scores)
   const completedHoles = useMemo(() => {
@@ -210,6 +225,9 @@ export function GroupScorer({
           )
         })}
       </div>
+
+      {/* Extra content (e.g., junk bet buttons) */}
+      {extraContent}
 
       {/* Next hole button */}
       {isCurrentHoleComplete && (

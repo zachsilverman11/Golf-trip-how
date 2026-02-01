@@ -21,7 +21,11 @@ import type { MatchState } from '@/lib/supabase/match-types'
 import type { FormatState } from '@/lib/format-types'
 import { generateNarratives } from '@/lib/narrative-utils'
 import { CompetitionBadge } from '@/components/scoring/CompetitionBadge'
+import { JunkBetButtons } from '@/components/scoring/JunkBetButtons'
+import { JunkBetSummary } from '@/components/scoring/JunkBetSummary'
 import { ShareButton } from '@/components/ui/ShareButton'
+import { getJunkConfigAction } from '@/lib/supabase/junk-actions'
+import type { RoundJunkConfig } from '@/lib/junk-types'
 
 interface Player {
   id: string
@@ -47,6 +51,7 @@ export default function ScorePage() {
   const [matchState, setMatchState] = useState<MatchState | null>(null)
   const [formatState, setFormatState] = useState<FormatState | null>(null)
   const [formatError, setFormatError] = useState<string | null>(null)
+  const [junkConfig, setJunkConfig] = useState<RoundJunkConfig | null>(null)
   const [competitionName, setCompetitionName] = useState<string | null>(null)
   const [currentHole, setCurrentHole] = useState(1)
   const [loading, setLoading] = useState(true)
@@ -54,6 +59,11 @@ export default function ScorePage() {
   const [error, setError] = useState<string | null>(null)
   const [liveToast, setLiveToast] = useState(false)
   const liveToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [scorerState, setScorerState] = useState<{ currentHole: number; selectedPlayerId: string | null; par: number }>({
+    currentHole: 1,
+    selectedPlayerId: null,
+    par: 4,
+  })
 
   // --- Realtime data refresh ---
   const refreshData = useCallback(async () => {
@@ -130,6 +140,12 @@ export default function ScorePage() {
           // Teams not configured - will show setup prompt
           setFormatError(formatResult.error)
         }
+      }
+
+      // Load junk bet config
+      const junkResult = await getJunkConfigAction(roundId)
+      if (junkResult.config?.enabled) {
+        setJunkConfig(junkResult.config)
       }
 
       // Check if this round counts toward team competition
@@ -428,6 +444,20 @@ export default function ScorePage() {
           scores={scores}
           onScoreChange={handleScoreChange}
           onComplete={handleComplete}
+          onStateChange={setScorerState}
+          extraContent={
+            junkConfig ? (
+              <JunkBetButtons
+                roundId={roundId}
+                players={players}
+                selectedPlayerId={scorerState.selectedPlayerId}
+                currentHole={scorerState.currentHole}
+                par={scorerState.par}
+                junkConfig={junkConfig}
+                className="mb-4"
+              />
+            ) : undefined
+          }
         />
       ) : (
         <div className="text-center py-8">

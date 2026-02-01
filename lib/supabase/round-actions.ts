@@ -63,7 +63,7 @@ export interface CreateRoundInput {
   name: string
   date: string
   tee_time?: string | null  // Round-level tee time (TIMESTAMPTZ)
-  format?: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
+  format?: import('./types').RoundFormat
   scoring_basis?: 'gross' | 'net'
 }
 
@@ -72,7 +72,7 @@ export interface UpdateRoundInput {
   date?: string
   tee_time?: string | null
   status?: 'upcoming' | 'in_progress' | 'completed'
-  format?: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
+  format?: import('./types').RoundFormat
   scoring_basis?: 'gross' | 'net'
   tee_id?: string | null
 }
@@ -619,6 +619,8 @@ export interface CreateRoundWithGroupsInput extends CreateRoundInput {
   // Team assignments for Points Hi/Lo and Stableford formats
   // Maps playerId -> team number (1 or 2)
   team_assignments?: Record<string, 1 | 2>
+  // Junk/side bet configuration (optional overlay)
+  junk_config?: import('../junk-types').RoundJunkConfig | null
 }
 
 export async function createRoundWithGroupsAction(
@@ -632,16 +634,15 @@ export async function createRoundWithGroupsAction(
   }
 
   // Validate team assignments for format rounds
-  // Only Points Hi/Lo requires teams for v1 (Stableford works individually)
-  const formatRequiresTeams = input.format === 'points_hilo'
-  if (formatRequiresTeams) {
+  const needsTeams = input.format === 'points_hilo' || input.format === 'nassau'
+  if (needsTeams) {
     const allPlayerIds = input.groups.flatMap(g => g.player_ids)
 
-    // Must have exactly 4 players for v1
+    // Must have exactly 4 players for team formats
     if (allPlayerIds.length !== 4) {
       return {
         success: false,
-        error: 'Points Hi/Lo format requires exactly 4 players'
+        error: `${input.format === 'nassau' ? 'Nassau' : 'Points Hi/Lo'} format requires exactly 4 players`
       }
     }
 
@@ -665,20 +666,38 @@ export async function createRoundWithGroupsAction(
     }
   }
 
+  // Wolf requires exactly 4 players
+  if (input.format === 'wolf') {
+    const allPlayerIds = input.groups.flatMap(g => g.player_ids)
+    if (allPlayerIds.length !== 4) {
+      return {
+        success: false,
+        error: 'Wolf format requires exactly 4 players'
+      }
+    }
+  }
+
   try {
     // Create the round
+    const roundInsert: Record<string, unknown> = {
+      trip_id: input.trip_id,
+      tee_id: input.tee_id ?? null,
+      name: input.name,
+      date: input.date,
+      tee_time: input.tee_time ?? null,
+      format: input.format || 'stroke_play',
+      scoring_basis: input.scoring_basis || 'net',
+      status: 'upcoming',
+    }
+
+    // Include junk config if provided
+    if (input.junk_config) {
+      roundInsert.junk_config = input.junk_config
+    }
+
     const { data: round, error: roundError } = await supabase
       .from('rounds')
-      .insert({
-        trip_id: input.trip_id,
-        tee_id: input.tee_id ?? null,
-        name: input.name,
-        date: input.date,
-        tee_time: input.tee_time ?? null,
-        format: input.format || 'stroke_play',
-        scoring_basis: input.scoring_basis || 'net',
-        status: 'upcoming',
-      })
+      .insert(roundInsert)
       .select('id')
       .single()
 
@@ -712,7 +731,7 @@ export async function createRoundWithGroupsAction(
         group_id: group.id,
         player_id: playerId,
         playing_handicap: groupInput.playing_handicaps?.[playerId] ?? null,
-        team_number: input.team_assignments?.[playerId] ?? null,
+        team_number: needsTeams ? (input.team_assignments?.[playerId] ?? null) : null,
       }))
 
       if (groupPlayersData.length > 0) {

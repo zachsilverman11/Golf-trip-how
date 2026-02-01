@@ -9,10 +9,16 @@ import { ErrorCard } from '@/components/ui/ErrorCard'
 import { getTripMoneyTotalsAction, type PlayerMoneyTotal } from '@/lib/supabase/match-actions'
 import { getTripFormatStandingsAction } from '@/lib/supabase/format-actions'
 import { getWarTotalsAction, type WarTotals } from '@/lib/supabase/war-actions'
+import { getTripJunkBetsAction } from '@/lib/supabase/junk-actions'
+import { getPlayersAction } from '@/lib/supabase/player-actions'
 import { WarTotalsCard } from '@/components/settle/WarTotalsCard'
 import { formatMoney } from '@/lib/match-utils'
+import { calculateJunkSettlement, formatJunkValue } from '@/lib/junk-utils'
+import { JUNK_TYPES, type RoundJunkConfig, type DbJunkBet, type RoundJunkSettlement } from '@/lib/junk-types'
+import { Badge } from '@/components/ui/Badge'
 import { cn } from '@/lib/utils'
 import type { TripFormatStandings } from '@/lib/format-types'
+import type { DbPlayer } from '@/lib/supabase/types'
 
 export default function SettlePage() {
   const params = useParams()
@@ -21,6 +27,7 @@ export default function SettlePage() {
   const [playerTotals, setPlayerTotals] = useState<PlayerMoneyTotal[]>([])
   const [formatStandings, setFormatStandings] = useState<TripFormatStandings | null>(null)
   const [warTotals, setWarTotals] = useState<WarTotals | null>(null)
+  const [junkSettlements, setJunkSettlements] = useState<RoundJunkSettlement[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null)
@@ -28,10 +35,12 @@ export default function SettlePage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [moneyResult, formatResult, warResult] = await Promise.all([
+        const [moneyResult, formatResult, warResult, junkResult, playersResult] = await Promise.all([
           getTripMoneyTotalsAction(tripId),
           getTripFormatStandingsAction(tripId),
           getWarTotalsAction(tripId),
+          getTripJunkBetsAction(tripId),
+          getPlayersAction(tripId),
         ])
 
         if (!moneyResult.success) {
@@ -47,6 +56,31 @@ export default function SettlePage() {
 
         if (warResult.totals) {
           setWarTotals(warResult.totals)
+        }
+
+        // Calculate junk settlements
+        if (junkResult.roundBets && junkResult.roundBets.length > 0 && playersResult.players) {
+          const players = playersResult.players as DbPlayer[]
+          const playerNames: Record<string, string> = {}
+          for (const p of players) {
+            playerNames[p.id] = p.name
+          }
+          const playerIds = players.map((p) => p.id)
+
+          const settlements = junkResult.roundBets
+            .filter((rb) => rb.bets.length > 0 && rb.config?.enabled)
+            .map((rb) =>
+              calculateJunkSettlement(
+                rb.roundId,
+                rb.roundName,
+                rb.bets,
+                playerIds,
+                playerNames,
+                rb.config!
+              )
+            )
+
+          setJunkSettlements(settlements)
         }
       } catch (err) {
         console.error('Failed to load settle data:', err)
@@ -131,6 +165,11 @@ export default function SettlePage() {
       {/* Format Standings (if any format rounds played) */}
       {hasFormatData && (
         <FormatStandingsCard standings={formatStandings} className="mb-4" />
+      )}
+
+      {/* Junk/Side Bet Settlements */}
+      {junkSettlements.length > 0 && (
+        <JunkSettlementCard settlements={junkSettlements} className="mb-4" />
       )}
 
       {!hasMoneyData ? (
@@ -384,6 +423,112 @@ function SettlementMatrix({ playerTotals }: { playerTotals: PlayerMoneyTotal[] }
         </div>
       ))}
     </div>
+  )
+}
+
+/**
+ * Junk/Side Bet settlement card showing per-round junk summaries
+ */
+function JunkSettlementCard({
+  settlements,
+  className,
+}: {
+  settlements: RoundJunkSettlement[]
+  className?: string
+}) {
+  // Aggregate across all rounds
+  const aggregated: Record<string, { playerName: string; netTotal: number }> = {}
+
+  for (const settlement of settlements) {
+    for (const summary of settlement.playerSummaries) {
+      const existing = aggregated[summary.playerId]
+      if (existing) {
+        existing.netTotal += summary.netJunk
+      } else {
+        aggregated[summary.playerId] = {
+          playerName: summary.playerName,
+          netTotal: summary.netJunk,
+        }
+      }
+    }
+  }
+
+  const sorted = Object.entries(aggregated)
+    .map(([playerId, data]) => ({ playerId, ...data }))
+    .sort((a, b) => b.netTotal - a.netTotal)
+
+  const totalClaims = settlements.reduce(
+    (sum, s) => sum + s.playerSummaries.reduce((ps, p) => ps + p.claims.reduce((cs, c) => cs + c.count, 0), 0),
+    0
+  )
+
+  return (
+    <Card className={cn('p-4', className)}>
+      <div className="flex items-center gap-2 mb-1">
+        <h2 className="font-display font-bold text-text-0">Side Bets</h2>
+        <Badge variant="gold">
+          {totalClaims} claim{totalClaims !== 1 ? 's' : ''}
+        </Badge>
+      </div>
+      <p className="text-xs text-text-2 mb-4">
+        Junk bet totals across {settlements.length} round{settlements.length !== 1 ? 's' : ''}
+      </p>
+
+      <div className="space-y-2">
+        {sorted.map((player) => {
+          const isPositive = player.netTotal > 0
+          const isNegative = player.netTotal < 0
+          return (
+            <div
+              key={player.playerId}
+              className="flex items-center justify-between bg-bg-2 rounded-lg p-2.5"
+            >
+              <span className="font-medium text-text-0 text-sm">
+                {player.playerName}
+              </span>
+              <span className={cn(
+                'font-bold text-sm tabular-nums',
+                isPositive && 'text-good',
+                isNegative && 'text-bad',
+                !isPositive && !isNegative && 'text-text-2'
+              )}>
+                {isPositive && '+'}{formatJunkValue(Math.abs(player.netTotal))}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Per-round breakdown */}
+      {settlements.length > 1 && (
+        <div className="mt-3 pt-3 border-t border-stroke">
+          <p className="text-xs text-text-2 mb-2">Per Round</p>
+          {settlements.map((settlement) => (
+            <div key={settlement.roundId} className="mb-2">
+              <p className="text-xs font-medium text-text-1 mb-1">
+                {settlement.roundName}
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {settlement.playerSummaries
+                  .filter((s) => s.netJunk !== 0)
+                  .map((s) => (
+                    <span
+                      key={s.playerId}
+                      className={cn(
+                        'text-[10px] px-2 py-0.5 rounded-full',
+                        s.netJunk > 0 ? 'bg-good/10 text-good' : 'bg-bad/10 text-bad'
+                      )}
+                    >
+                      {s.playerName.split(' ')[0]}: {s.netJunk > 0 && '+'}
+                      {formatJunkValue(Math.abs(s.netJunk))}
+                    </span>
+                  ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   )
 }
 
