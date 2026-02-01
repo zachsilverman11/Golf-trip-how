@@ -127,12 +127,23 @@ export default function MatchesPage() {
 
 function MatchCard({ match, tripId }: { match: TripMatchSummary; tripId: string }) {
   const isComplete = match.status === 'completed'
-  const statusText = isComplete
-    ? match.finalResult
-    : formatMatchStatus(match.currentLead, 18 - match.holesPlayed, false)
+
+  // Format type labels
+  const typeLabels: Record<string, string> = {
+    'match_play': 'MATCH PLAY',
+    'nassau': 'NASSAU',
+    'skins': 'SKINS',
+    'wolf': 'WOLF',
+  }
+  const typeLabel = typeLabels[match.matchType] || match.matchType.toUpperCase()
+
+  // Different link based on type
+  const href = match.matchType === 'nassau' || match.matchType === 'skins'
+    ? `/trip/${tripId}/round/${match.roundId}/score`
+    : `/trip/${tripId}/round/${match.roundId}/match`
 
   return (
-    <Link href={`/trip/${tripId}/round/${match.roundId}/match`}>
+    <Link href={href}>
       <Card className="p-4 hover:border-accent/50 transition-colors">
         <div className="flex items-start justify-between mb-3">
           <div>
@@ -160,36 +171,45 @@ function MatchCard({ match, tripId }: { match: TripMatchSummary; tripId: string 
 
         <div className="flex items-center justify-between">
           <div className="flex-1">
-            <div className="text-sm">
-              <span className={cn(
-                'font-medium',
-                match.winner === 'team_a' && 'text-good'
-              )}>
+            {match.teamBNames ? (
+              <div className="text-sm">
+                <span className={cn(
+                  'font-medium',
+                  match.winner === 'team_a' && 'text-good'
+                )}>
+                  {match.teamANames}
+                </span>
+                <span className="text-text-2 mx-2">vs</span>
+                <span className={cn(
+                  'font-medium',
+                  match.winner === 'team_b' && 'text-good'
+                )}>
+                  {match.teamBNames}
+                </span>
+              </div>
+            ) : (
+              <div className="text-sm font-medium text-text-0">
                 {match.teamANames}
-              </span>
-              <span className="text-text-2 mx-2">vs</span>
-              <span className={cn(
-                'font-medium',
-                match.winner === 'team_b' && 'text-good'
-              )}>
-                {match.teamBNames}
-              </span>
-            </div>
+              </div>
+            )}
             <div className="text-xs text-text-2 mt-1">
-              {match.matchType.toUpperCase()} • {formatMoney(match.stakePerMan)}/man
-              {match.pressCount > 0 && ` • ${match.pressCount} press${match.pressCount > 1 ? 'es' : ''}`}
+              {typeLabel} • {formatMoney(match.stakePerMan)}/{match.matchType === 'skins' ? 'skin' : 'man'}
+              {match.matchType === 'nassau' && ' × 3 bets'}
+              {match.pressCount > 0 && match.matchType !== 'nassau' && ` • ${match.pressCount} press${match.pressCount > 1 ? 'es' : ''}`}
             </div>
           </div>
           <div className="text-right">
             {isComplete ? (
-              <span className="font-bold text-gold">{match.finalResult}</span>
+              <span className="font-bold text-gold">{match.finalResult || 'Complete'}</span>
+            ) : match.matchType === 'match_play' ? (
+              <>
+                <MatchStatus lead={match.currentLead} />
+                <div className="text-xs text-text-2 mt-0.5">
+                  thru {match.holesPlayed}
+                </div>
+              </>
             ) : (
-              <MatchStatus lead={match.currentLead} />
-            )}
-            {!isComplete && (
-              <div className="text-xs text-text-2 mt-0.5">
-                thru {match.holesPlayed}
-              </div>
+              <span className="text-sm text-accent font-medium">In Progress</span>
             )}
           </div>
         </div>

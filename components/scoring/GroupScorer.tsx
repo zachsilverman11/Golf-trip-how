@@ -222,110 +222,143 @@ export function GroupScorer({
   const completedCount = completedHoles.length
   const progressPercent = Math.round((completedCount / totalHoles) * 100)
 
+  // Compute hole result summary when hole is complete
+  const holeResult = useMemo(() => {
+    if (!isCurrentHoleComplete) return null
+
+    // Compute net scores for this hole
+    const results = players.map((player) => {
+      const gross = scores[player.id]?.[currentHole] ?? 0
+      const strokes = getStrokesForHole(
+        player.playingHandicap || 0,
+        currentHoleInfo.strokeIndex
+      )
+      const net = gross - strokes
+      const delta = gross - currentHoleInfo.par
+
+      return {
+        id: player.id,
+        name: player.name,
+        gross,
+        net,
+        delta,
+        strokes,
+      }
+    })
+
+    // Find lowest net score
+    const lowestNet = Math.min(...results.map((r) => r.net))
+    const winners = results.filter((r) => r.net === lowestNet)
+    const isTied = winners.length > 1
+
+    return { results, winners, isTied, lowestNet }
+  }, [isCurrentHoleComplete, players, scores, currentHole, currentHoleInfo])
+
   return (
     <div className={cn('flex flex-col', className)}>
-      {/* Hole info header — premium feel */}
-      <div className="mb-3 rounded-xl bg-bg-1 border border-stroke/40 p-4">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-baseline gap-2">
-            <span className="font-display text-3xl font-extrabold text-text-0">
-              Hole {currentHole}
-            </span>
-            <span className="text-sm text-text-2">of {totalHoles}</span>
+      {/* Scrollable content — leaves room for fixed keypad */}
+      <div className="pb-[260px]">
+        {/* Hole info header — compact */}
+        <div className="mb-2 rounded-xl bg-bg-1 border border-stroke/40 p-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-baseline gap-2">
+              <span className="font-display text-2xl font-extrabold text-text-0">
+                Hole {currentHole}
+              </span>
+              <span className="text-xs text-text-2">of {totalHoles}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              {currentHoleInfo.yards && (
+                <span className="text-xs text-text-2">{currentHoleInfo.yards}yd</span>
+              )}
+              <span className="text-xs text-text-2">SI {currentHoleInfo.strokeIndex}</span>
+              <span className="font-display text-xl font-bold text-accent">
+                Par {currentHoleInfo.par}
+              </span>
+            </div>
           </div>
-          <div className="text-right">
-            <span className="font-display text-2xl font-bold text-accent">
-              Par {currentHoleInfo.par}
-            </span>
+          {/* Progress bar */}
+          <div className="mt-2 h-1 rounded-full bg-bg-2 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-accent transition-all duration-500 ease-out"
+              style={{ width: `${progressPercent}%` }}
+            />
           </div>
         </div>
-        <div className="flex items-center gap-4 text-xs text-text-2">
-          {currentHoleInfo.yards && (
-            <span className="flex items-center gap-1">
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" />
-              </svg>
-              {currentHoleInfo.yards} yd
-            </span>
-          )}
-          <span className="flex items-center gap-1">
-            SI {currentHoleInfo.strokeIndex}
-          </span>
-          <span className="ml-auto text-text-2/60 tabular-nums">
-            {completedCount}/{totalHoles} holes
-          </span>
+
+        {/* Hole navigator */}
+        <HoleNavigator
+          currentHole={currentHole}
+          totalHoles={totalHoles}
+          completedHoles={completedHoles}
+          onHoleSelect={handleHoleChange}
+          className="mb-3"
+        />
+
+        {/* Player score rows */}
+        <div className="space-y-2 mb-3">
+          {players.map((player) => {
+            const strokes = getStrokesForHole(
+              player.playingHandicap || 0,
+              currentHoleInfo.strokeIndex
+            )
+
+            return (
+              <PlayerScoreRow
+                key={player.id}
+                name={player.name}
+                score={scores[player.id]?.[currentHole] ?? null}
+                par={currentHoleInfo.par}
+                strokes={strokes}
+                totalGross={playerTotals[player.id]?.gross || 0}
+                totalNet={playerTotals[player.id]?.net || 0}
+                isSelected={selectedPlayerId === player.id}
+                onClick={() => handlePlayerSelect(player.id)}
+              />
+            )
+          })}
         </div>
-        {/* Progress bar */}
-        <div className="mt-2.5 h-1 rounded-full bg-bg-2 overflow-hidden">
-          <div
-            className="h-full rounded-full bg-accent transition-all duration-500 ease-out"
-            style={{ width: `${progressPercent}%` }}
+
+        {/* Hole result — shows who won after all scores entered */}
+        {holeResult && (
+          <div className="mb-3 rounded-xl border border-accent/30 bg-accent/5 p-3 animate-fadeIn">
+            <div className="flex items-center justify-between">
+              <div>
+                {holeResult.isTied ? (
+                  <p className="text-sm font-medium text-text-1">
+                    🤝 Halved — {holeResult.winners.map(w => w.name.split(' ')[0]).join(' & ')} tied at {holeResult.lowestNet > 0 ? `+${holeResult.lowestNet}` : holeResult.lowestNet === 0 ? 'E' : holeResult.lowestNet} net
+                  </p>
+                ) : (
+                  <p className="text-sm font-medium text-text-1">
+                    🏆 <span className="text-accent font-bold">{holeResult.winners[0].name}</span> wins with{' '}
+                    {holeResult.winners[0].gross} ({holeResult.winners[0].strokes > 0 ? `${holeResult.winners[0].gross}-${holeResult.winners[0].strokes}=` : ''}{holeResult.winners[0].net} net)
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={goToNextHole}
+                className="shrink-0 ml-3 rounded-lg bg-good px-4 py-2 font-display font-bold text-white text-sm active:scale-[0.96] transition-transform"
+              >
+                {currentHole < totalHoles ? `→ ${currentHole + 1}` : '🏁 Finish'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Extra content (e.g., junk bet buttons) */}
+        {extraContent}
+      </div>
+
+      {/* Fixed keypad — always visible above bottom nav */}
+      <div className="fixed bottom-16 left-0 right-0 z-20 bg-bg-0 border-t border-stroke/30 px-4 pt-2 pb-2">
+        <div className="mx-auto max-w-content">
+          <ScoringKeypad
+            onNumber={handleNumber}
+            onClear={handleClear}
+            onBackspace={handleBackspace}
           />
         </div>
       </div>
-
-      {/* Hole navigator */}
-      <HoleNavigator
-        currentHole={currentHole}
-        totalHoles={totalHoles}
-        completedHoles={completedHoles}
-        onHoleSelect={handleHoleChange}
-        className="mb-4"
-      />
-
-      {/* Player score rows */}
-      <div className="space-y-2 mb-4">
-        {players.map((player) => {
-          const strokes = getStrokesForHole(
-            player.playingHandicap || 0,
-            currentHoleInfo.strokeIndex
-          )
-
-          return (
-            <PlayerScoreRow
-              key={player.id}
-              name={player.name}
-              score={scores[player.id]?.[currentHole] ?? null}
-              par={currentHoleInfo.par}
-              strokes={strokes}
-              totalGross={playerTotals[player.id]?.gross || 0}
-              totalNet={playerTotals[player.id]?.net || 0}
-              isSelected={selectedPlayerId === player.id}
-              onClick={() => handlePlayerSelect(player.id)}
-            />
-          )
-        })}
-      </div>
-
-      {/* Extra content (e.g., junk bet buttons) */}
-      {extraContent}
-
-      {/* Next hole button — animated entrance */}
-      {showNextHole && (
-        <div className="mb-4 animate-slideIn">
-          <button
-            onClick={goToNextHole}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-good py-4 font-display font-bold text-white text-base active:scale-[0.98] transition-transform shadow-lg shadow-good/20"
-          >
-            {currentHole < totalHoles ? (
-              <>
-                Next Hole →  Hole {currentHole + 1}
-              </>
-            ) : (
-              <>
-                🏁 Finish Round
-              </>
-            )}
-          </button>
-        </div>
-      )}
-
-      {/* Keypad */}
-      <ScoringKeypad
-        onNumber={handleNumber}
-        onClear={handleClear}
-        onBackspace={handleBackspace}
-      />
     </div>
   )
 }

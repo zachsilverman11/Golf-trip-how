@@ -654,6 +654,124 @@ export async function getMatchesForTripAction(tripId: string): Promise<{
       })
     }
 
+    // Also get Nassau bets for this trip
+    try {
+      const { data: nassauRounds } = await supabase
+        .from('rounds')
+        .select(`
+          id,
+          name,
+          date,
+          status,
+          nassau_bets (
+            id,
+            stake_per_man,
+            auto_press,
+            team_a_player1_id,
+            team_a_player2_id,
+            team_b_player1_id,
+            team_b_player2_id
+          )
+        `)
+        .eq('trip_id', tripId)
+        .eq('format', 'nassau')
+        .order('date', { ascending: false })
+
+      for (const round of nassauRounds || []) {
+        const nassau = (round as any).nassau_bets?.[0]
+        if (!nassau) continue
+
+        const playerIds = [
+          nassau.team_a_player1_id,
+          nassau.team_a_player2_id,
+          nassau.team_b_player1_id,
+          nassau.team_b_player2_id,
+        ].filter(Boolean)
+
+        const { data: players } = await supabase
+          .from('players')
+          .select('id, name')
+          .in('id', playerIds)
+
+        const playerNames: Record<string, string> = {}
+        for (const p of players || []) {
+          playerNames[p.id] = p.name
+        }
+
+        const teamANames = [
+          playerNames[nassau.team_a_player1_id],
+          nassau.team_a_player2_id ? playerNames[nassau.team_a_player2_id] : null,
+        ].filter(Boolean).join('/')
+
+        const teamBNames = [
+          playerNames[nassau.team_b_player1_id],
+          nassau.team_b_player2_id ? playerNames[nassau.team_b_player2_id] : null,
+        ].filter(Boolean).join('/')
+
+        matchSummaries.push({
+          matchId: nassau.id,
+          roundId: round.id,
+          roundName: round.name,
+          roundDate: round.date,
+          matchType: 'nassau',
+          stakePerMan: nassau.stake_per_man,
+          status: round.status === 'completed' ? 'completed' : 'in_progress',
+          winner: null,
+          finalResult: null,
+          currentLead: 0,
+          holesPlayed: 0,
+          teamANames,
+          teamBNames,
+          pressCount: nassau.auto_press ? 1 : 0,
+        })
+      }
+    } catch {
+      // Nassau table might not exist yet — silently continue
+    }
+
+    // Also get Skins bets
+    try {
+      const { data: skinsRounds } = await supabase
+        .from('rounds')
+        .select(`
+          id,
+          name,
+          date,
+          status,
+          skins_bets (
+            id,
+            stake_per_skin
+          )
+        `)
+        .eq('trip_id', tripId)
+        .eq('format', 'skins')
+        .order('date', { ascending: false })
+
+      for (const round of skinsRounds || []) {
+        const skins = (round as any).skins_bets?.[0]
+        if (!skins) continue
+
+        matchSummaries.push({
+          matchId: skins.id,
+          roundId: round.id,
+          roundName: round.name,
+          roundDate: round.date,
+          matchType: 'skins',
+          stakePerMan: skins.stake_per_skin,
+          status: round.status === 'completed' ? 'completed' : 'in_progress',
+          winner: null,
+          finalResult: null,
+          currentLead: 0,
+          holesPlayed: 0,
+          teamANames: 'All Players',
+          teamBNames: '',
+          pressCount: 0,
+        })
+      }
+    } catch {
+      // Skins table might not exist yet
+    }
+
     return { matches: matchSummaries }
   } catch (err) {
     console.error('Get matches for trip error:', err)
@@ -935,6 +1053,84 @@ export async function getTripMoneyTotalsAction(tripId: string): Promise<TripMone
           }
         }
       })
+    }
+
+    // Also include Nassau bet settlements
+    try {
+      const { data: nassauRounds } = await supabase
+        .from('rounds')
+        .select(`
+          id,
+          name,
+          nassau_bets (
+            id,
+            stake_per_man,
+            team_a_player1_id,
+            team_a_player2_id,
+            team_b_player1_id,
+            team_b_player2_id
+          )
+        `)
+        .eq('trip_id', tripId)
+        .eq('format', 'nassau')
+
+      for (const round of nassauRounds || []) {
+        const nassau = (round as any).nassau_bets?.[0]
+        if (!nassau) continue
+
+        const teamAIds = [nassau.team_a_player1_id, nassau.team_a_player2_id].filter(Boolean) as string[]
+        const teamBIds = [nassau.team_b_player1_id, nassau.team_b_player2_id].filter(Boolean) as string[]
+
+        // Add all player IDs
+        teamAIds.forEach(id => playerIds.add(id))
+        teamBIds.forEach(id => playerIds.add(id))
+        for (const id of [...teamAIds, ...teamBIds]) {
+          if (!playerTotals[id]) {
+            playerTotals[id] = { winnings: 0, results: [] }
+          }
+        }
+
+        // Get nassau state to compute settlement
+        const { getNassauStateAction } = await import('./nassau-actions')
+        const nassauResult = await getNassauStateAction(round.id)
+        if (!nassauResult.nassauState) continue
+
+        const ns = nassauResult.nassauState
+        const stake = ns.stakePerMan
+
+        // Each sub-match: if lead > 0, Team A wins; if lead < 0, Team B wins; 0 = halved
+        const subMatches = [
+          { label: 'Front 9', lead: ns.front.lead },
+          { label: 'Back 9', lead: ns.back.lead },
+          { label: 'Overall', lead: ns.overall.lead },
+        ]
+
+        for (const sub of subMatches) {
+          if (sub.lead === 0) continue // halved, no money
+
+          const winnerIds = sub.lead > 0 ? teamAIds : teamBIds
+          const loserIds = sub.lead > 0 ? teamBIds : teamAIds
+
+          for (const id of winnerIds) {
+            playerTotals[id].winnings += stake
+            playerTotals[id].results.push({
+              roundName: round.name,
+              amount: stake,
+              description: `Nassau ${sub.label}: Won`,
+            })
+          }
+          for (const id of loserIds) {
+            playerTotals[id].winnings -= stake
+            playerTotals[id].results.push({
+              roundName: round.name,
+              amount: -stake,
+              description: `Nassau ${sub.label}: Lost`,
+            })
+          }
+        }
+      }
+    } catch {
+      // Nassau tables may not exist yet — silently continue
     }
 
     // Fetch player names

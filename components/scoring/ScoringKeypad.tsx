@@ -31,19 +31,18 @@ export function ScoringKeypad({
   ]
 
   return (
-    <div className={cn('grid grid-cols-3 gap-2.5', className)}>
+    <div className={cn('grid grid-cols-3 gap-1.5', className)}>
       {keys.map((key) => (
         <button
           key={key.label}
           onClick={(e) => {
-            // Haptic-like feedback via brief scale
             const el = e.currentTarget
             el.style.transform = 'scale(0.92)'
             setTimeout(() => { el.style.transform = '' }, 100)
             key.action()
           }}
           className={cn(
-            'flex h-[56px] items-center justify-center rounded-xl font-display text-[1.75rem] font-bold',
+            'flex h-[46px] items-center justify-center rounded-lg font-display text-xl font-bold',
             'transition-all duration-100 select-none',
             'active:scale-[0.92] active:brightness-90',
             key.variant === 'action'
