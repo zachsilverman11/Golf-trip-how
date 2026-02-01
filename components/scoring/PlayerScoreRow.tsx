@@ -42,14 +42,6 @@ export function PlayerScoreRow({
     return 'bg-bg-2 text-text-0'
   }
 
-  // Render stroke dots (handicap strokes on this hole)
-  const strokeDots = Array.from({ length: Math.min(strokes, 3) }, (_, i) => (
-    <span
-      key={i}
-      className="inline-block h-[6px] w-[6px] rounded-full bg-accent"
-    />
-  ))
-
   return (
     <button
       onClick={onClick}
@@ -61,12 +53,19 @@ export function PlayerScoreRow({
         className
       )}
     >
-      {/* Player avatar initial */}
-      <div className={cn(
-        'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold',
-        isSelected ? 'bg-accent text-bg-0' : 'bg-bg-2 text-text-2'
-      )}>
-        {name.charAt(0).toUpperCase()}
+      {/* Player avatar initial — with stroke ring indicator */}
+      <div className="relative shrink-0">
+        <div className={cn(
+          'flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold',
+          isSelected ? 'bg-accent text-bg-0' : 'bg-bg-2 text-text-2'
+        )}>
+          {name.charAt(0).toUpperCase()}
+        </div>
+        {strokes > 0 && (
+          <div className="absolute -top-1 -right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent text-[10px] font-bold text-bg-0 px-1 shadow-sm shadow-accent/30">
+            {strokes > 1 ? `${strokes}●` : '●'}
+          </div>
+        )}
       </div>
 
       {/* Player info */}
@@ -79,11 +78,8 @@ export function PlayerScoreRow({
             {name}
           </span>
           {strokes > 0 && (
-            <span className="flex items-center gap-[3px] shrink-0">
-              {strokeDots}
-              {strokes > 3 && (
-                <span className="text-[10px] text-accent font-medium">+{strokes - 3}</span>
-              )}
+            <span className="shrink-0 rounded-sm bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">
+              {strokes === 1 ? '1 stroke' : `${strokes} strokes`}
             </span>
           )}
         </div>

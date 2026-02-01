@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getRoundAction, updateRoundAction } from '@/lib/supabase/round-actions'
 import { getMatchForRoundAction } from '@/lib/supabase/match-actions'
+import { getNassauStateAction } from '@/lib/supabase/nassau-actions'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -9,6 +10,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Divider } from '@/components/ui/Divider'
 import { StartRoundButton } from '@/components/trip/StartRoundButton'
 import { RoundTeamAssignment } from '@/components/round/RoundTeamAssignment'
+import { NassauBetSetup } from '@/components/round/NassauBetSetup'
 import { RoundManagement } from '@/components/round/RoundManagement'
 
 export const dynamic = 'force-dynamic'
@@ -66,12 +68,14 @@ function formatTeeTime(teeTimeStr: string | null): string | null {
 }
 
 export default async function RoundPage({ params }: RoundPageProps) {
-  const [roundResult, matchResult] = await Promise.all([
+  const [roundResult, matchResult, nassauResult] = await Promise.all([
     getRoundAction(params.roundId),
     getMatchForRoundAction(params.roundId),
+    getNassauStateAction(params.roundId),
   ])
 
   const { round, error } = roundResult
+  const hasNassauBet = !!nassauResult.nassauState
 
   if (error || !round) {
     notFound()
@@ -237,6 +241,19 @@ export default async function RoundPage({ params }: RoundPageProps) {
             players={playersForTeams}
             format={round.format}
             status={round.status}
+          />
+        </div>
+      )}
+
+      {/* Nassau Bet Setup */}
+      {round.format === 'nassau' && (
+        <div className="mb-6">
+          <NassauBetSetup
+            roundId={params.roundId}
+            tripId={params.tripId}
+            players={playersForTeams}
+            status={round.status}
+            hasExistingBet={hasNassauBet}
           />
         </div>
       )}
