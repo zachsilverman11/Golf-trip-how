@@ -20,7 +20,6 @@ import {
 } from '@/components/round'
 import { DEFAULT_JUNK_CONFIG, type RoundJunkConfig } from '@/lib/junk-types'
 import { getPlayersAction } from '@/lib/supabase/player-actions'
-import { getTripAction } from '@/lib/supabase/trip-actions'
 import { createRoundWithGroupsAction } from '@/lib/supabase/round-actions'
 import { createMatchAction } from '@/lib/supabase/match-actions'
 import type { DbPlayer } from '@/lib/supabase/types'
@@ -40,8 +39,6 @@ export default function NewRoundPage() {
   // Form state
   const [name, setName] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
-  const [tripStartDate, setTripStartDate] = useState<string | null>(null)
-  const [tripEndDate, setTripEndDate] = useState<string | null>(null)
   const [teeTime, setTeeTime] = useState('')
   const [format, setFormat] = useState<RoundFormat>('stroke_play')
   const [scoringBasis, setScoringBasis] = useState<'gross' | 'net'>('net')
@@ -81,32 +78,11 @@ export default function NewRoundPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      const [playersResult, tripResult] = await Promise.all([
-        getPlayersAction(tripId),
-        getTripAction(tripId),
-      ])
+      const playersResult = await getPlayersAction(tripId)
 
       if (playersResult.players) {
         setPlayers(playersResult.players)
       }
-
-      // Constrain date picker to trip dates
-      if (tripResult.trip) {
-        const start = tripResult.trip.start_date
-        const end = tripResult.trip.end_date
-        if (start) setTripStartDate(start)
-        if (end) setTripEndDate(end)
-        // Default to trip start date (or today if within trip range)
-        if (start) {
-          const today = new Date().toISOString().split('T')[0]
-          if (today >= start && (!end || today <= end)) {
-            setDate(today)
-          } else {
-            setDate(start)
-          }
-        }
-      }
-
       setLoading(false)
     }
 
@@ -154,6 +130,19 @@ export default function NewRoundPage() {
         g.id === groupId ? { ...g, teeTime } : g
       )
     )
+  }
+
+  // Quick-add all players to first group
+  const addAllPlayers = () => {
+    if (groups[0] && unassignedPlayers.length > 0) {
+      setGroups(
+        groups.map((g, idx) =>
+          idx === 0
+            ? { ...g, playerIds: [...g.playerIds, ...unassignedPlayers.map((p) => p.id)] }
+            : g
+        )
+      )
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -280,383 +269,435 @@ export default function NewRoundPage() {
 
   if (loading) {
     return (
-      <LayoutContainer className="py-6">
-        <div className="text-center text-text-2">Loading...</div>
-      </LayoutContainer>
+      <div className="min-h-screen bg-bg-0">
+        <LayoutContainer className="py-6">
+          <div className="animate-pulse">
+            <div className="h-4 w-20 rounded bg-bg-2 mb-3" />
+            <div className="h-7 w-48 rounded bg-bg-2 mb-6" />
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="mb-4 rounded-xl bg-bg-1 border border-stroke/40 p-4">
+                <div className="h-5 w-32 rounded bg-bg-2 mb-3" />
+                <div className="h-10 rounded-lg bg-bg-2" />
+              </div>
+            ))}
+          </div>
+        </LayoutContainer>
+      </div>
     )
   }
 
   return (
-    <LayoutContainer className="py-6">
-      {/* Header */}
-      <div className="mb-6">
-        <Link
-          href={`/trip/${tripId}`}
-          className="mb-4 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
-        >
-          <BackIcon />
-          Back to trip
-        </Link>
-        <h1 className="font-display text-2xl font-bold text-text-0">
-          Create Round
-        </h1>
-      </div>
+    <div className="min-h-screen bg-bg-0">
+      <LayoutContainer className="py-6 pb-safe">
+        {/* Header */}
+        <div className="mb-6">
+          <Link
+            href={`/trip/${tripId}`}
+            className="mb-3 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
+          >
+            <BackIcon />
+            Back to trip
+          </Link>
+          <h1 className="font-display text-2xl font-bold text-text-0">
+            New Round
+          </h1>
+          <p className="text-sm text-text-2 mt-1">Set up your round, then get to scoring.</p>
+        </div>
 
-      <form onSubmit={handleSubmit}>
-        {/* Basic Info */}
-        <Card className="p-4 mb-4">
-          <h2 className="mb-4 font-display text-lg font-bold text-text-0">
-            Round Details
-          </h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* ── Section 1: Round Details ── */}
+          <div className="rounded-xl bg-bg-1 border border-stroke/40 p-4">
+            <h2 className="font-display text-sm font-bold uppercase tracking-wider text-text-2 mb-4">
+              Round Details
+            </h2>
 
-          <div className="space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-text-1">
-                Round Name <span className="text-bad">*</span>
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Day 1 - Morning Round"
-                required
-                className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 placeholder:text-text-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-text-1">
-                  Date <span className="text-bad">*</span>
+                <label className="mb-1.5 block text-sm font-medium text-text-1">
+                  Round Name <span className="text-bad">*</span>
                 </label>
                 <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  min={tripStartDate || undefined}
-                  max={tripEndDate || undefined}
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g., Day 1 - Morning Round"
                   required
-                  className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  className="w-full rounded-xl border border-stroke bg-bg-2 px-4 py-3 text-text-0 placeholder:text-text-2/50 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent text-[16px]"
                 />
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-text-1">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    required
+                    className="w-full rounded-xl border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none text-[16px]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-text-1">
+                    Tee Time
+                  </label>
+                  <input
+                    type="time"
+                    value={teeTime}
+                    onChange={(e) => setTeeTime(e.target.value)}
+                    className="w-full rounded-xl border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none text-[16px]"
+                  />
+                </div>
+              </div>
+
+              {/* Scoring basis as toggle pills */}
               <div>
-                <label className="mb-2 block text-sm font-medium text-text-1">
-                  Tee Time
+                <label className="mb-1.5 block text-sm font-medium text-text-1">
+                  Scoring
                 </label>
-                <input
-                  type="time"
-                  value={teeTime}
-                  onChange={(e) => setTeeTime(e.target.value)}
-                  className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                />
+                <div className="flex gap-2">
+                  {[
+                    { value: 'net' as const, label: 'Net (Handicap)', desc: 'Recommended' },
+                    { value: 'gross' as const, label: 'Gross', desc: 'Raw scores' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setScoringBasis(opt.value)}
+                      className={`flex-1 rounded-xl border p-3 text-left transition-all ${
+                        scoringBasis === opt.value
+                          ? 'border-accent bg-accent/10'
+                          : 'border-stroke bg-bg-2 active:bg-bg-0'
+                      }`}
+                    >
+                      <span className={`text-sm font-medium ${scoringBasis === opt.value ? 'text-accent' : 'text-text-1'}`}>
+                        {opt.label}
+                      </span>
+                      <span className="block text-[11px] text-text-2 mt-0.5">{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
+          </div>
 
+          {/* ── Section 2: Format Selection ── */}
+          <div className="rounded-xl bg-bg-1 border border-stroke/40 p-4">
+            <h2 className="font-display text-sm font-bold uppercase tracking-wider text-text-2 mb-4">
+              Format
+            </h2>
             <RoundFormatSelector
               value={format}
               onChange={setFormat}
             />
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-text-1">
-                Scoring Basis
-              </label>
-              <select
-                value={scoringBasis}
-                onChange={(e) => setScoringBasis(e.target.value as typeof scoringBasis)}
-                className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-              >
-                <option value="net">Net (Handicap)</option>
-                <option value="gross">Gross</option>
-              </select>
-            </div>
           </div>
-        </Card>
 
-        {/* Course Selection */}
-        <Card className="p-4 mb-4">
-          <h2 className="mb-4 font-display text-lg font-bold text-text-0">
-            Course
-          </h2>
-
-          {!manualCourseMode ? (
-            <>
-              <CourseSelector
-                selectedTeeId={selectedTeeId}
-                onTeeSelected={(teeId, courseName, teeName) => {
-                  setSelectedTeeId(teeId)
-                  setSelectedCourseName(courseName)
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => setManualCourseMode(true)}
-                className="mt-4 text-sm text-text-2 hover:text-accent transition-colors"
-              >
-                Can&apos;t find your course?
-              </button>
-            </>
-          ) : (
-            <div className="space-y-3">
-              <div className="rounded-card-sm bg-yellow-500/10 border border-yellow-500/30 p-3">
-                <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                  <span className="font-medium">Manual mode:</span> Without course data, all holes will default to Par 4.
-                  Handicap strokes won&apos;t be calculated.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setManualCourseMode(false)}
-                className="text-sm text-accent hover:underline"
-              >
-                ← Back to course search
-              </button>
-            </div>
-          )}
-        </Card>
-
-        {/* Groups */}
-        <Card className="p-4 mb-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-display text-lg font-bold text-text-0">
-              {groups.length === 1 ? 'Players & Tee Time' : 'Groups'}
+          {/* ── Section 3: Course ── */}
+          <div className="rounded-xl bg-bg-1 border border-stroke/40 p-4">
+            <h2 className="font-display text-sm font-bold uppercase tracking-wider text-text-2 mb-4">
+              Course
             </h2>
-            {groups.length > 1 || players.length > 4 ? (
-              <Button type="button" variant="secondary" size="default" onClick={addGroup}>
-                <PlusIcon />
-                Add Group
-              </Button>
-            ) : null}
-          </div>
 
-          {players.length === 0 ? (
-            <div className="text-center py-4">
-              <p className="text-text-2 mb-3">No players added yet</p>
-              <Link href={`/trip/${tripId}/players`}>
-                <Button type="button" variant="secondary" size="default">
-                  Add Players
-                </Button>
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {groups.map((group, index) => (
-                <div
-                  key={group.id}
-                  className={groups.length === 1 ? '' : 'rounded-card-sm border border-stroke bg-bg-2 p-4'}
+            {!manualCourseMode ? (
+              <>
+                <CourseSelector
+                  selectedTeeId={selectedTeeId}
+                  onTeeSelected={(teeId, courseName, teeName) => {
+                    setSelectedTeeId(teeId)
+                    setSelectedCourseName(courseName)
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setManualCourseMode(true)}
+                  className="mt-4 text-sm text-text-2 hover:text-accent transition-colors"
                 >
-                  {/* Group header (only show for multiple groups) */}
-                  {groups.length > 1 && (
-                    <div className="mb-3 flex items-center justify-between">
-                      <span className="font-medium text-text-0">
-                        Group {index + 1}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="time"
-                          value={group.teeTime}
-                          onChange={(e) => updateGroupTeeTime(group.id, e.target.value)}
-                          className="rounded-button border border-stroke bg-bg-1 px-3 py-1.5 text-sm text-text-0 focus:border-accent focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeGroup(group.id)}
-                          className="p-1 text-text-2 hover:text-bad transition-colors"
-                        >
-                          <TrashIcon />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Single group: simpler tee time input */}
-                  {groups.length === 1 && (
-                    <div className="mb-4">
-                      <label className="mb-2 block text-sm font-medium text-text-1">
-                        Tee Time
-                      </label>
-                      <input
-                        type="time"
-                        value={group.teeTime}
-                        onChange={(e) => updateGroupTeeTime(group.id, e.target.value)}
-                        className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none"
-                      />
-                    </div>
-                  )}
-
-                  {/* Players section */}
-                  {groups.length === 1 && (
-                    <label className="mb-2 block text-sm font-medium text-text-1">
-                      Players
-                    </label>
-                  )}
-
-                  {/* Player chips — tap to toggle */}
-                  <div className="flex flex-wrap gap-2">
-                    {players.map((player) => {
-                      const isInThisGroup = group.playerIds.includes(player.id)
-                      const isInOtherGroup = !isInThisGroup && assignedPlayerIds.has(player.id)
-
-                      return (
-                        <button
-                          key={player.id}
-                          type="button"
-                          disabled={isInOtherGroup}
-                          onClick={() => {
-                            if (isInThisGroup) {
-                              removePlayerFromGroup(group.id, player.id)
-                            } else {
-                              addPlayerToGroup(group.id, player.id)
-                            }
-                          }}
-                          className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium transition-all active:scale-95
-                            ${isInThisGroup
-                              ? 'bg-accent text-bg-0 shadow-sm'
-                              : isInOtherGroup
-                              ? 'bg-bg-2/50 text-text-2/40 cursor-not-allowed'
-                              : 'bg-bg-2 text-text-1 border border-stroke hover:border-accent/50'
-                            }`}
-                        >
-                          {isInThisGroup && (
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                            </svg>
-                          )}
-                          {player.name}
-                          {player.handicap_index !== null && (
-                            <span className={`text-xs ${isInThisGroup ? 'text-bg-0/70' : 'text-text-2'}`}>
-                              {player.handicap_index > 0 ? player.handicap_index.toFixed(1) : player.handicap_index < 0 ? `+${Math.abs(player.handicap_index).toFixed(1)}` : '0'}
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  {group.playerIds.length === 0 && (
-                    <p className="mt-2 text-xs text-text-2">Tap players to add them to this round</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        {/* Team Assignment (for Points Hi/Lo and Stableford) */}
-        {formatRequiresTeams(format) && assignedPlayerIds.size > 0 && (
-          <div className="mb-4">
-            <TeamAssignmentForm
-              players={players.filter((p) => assignedPlayerIds.has(p.id))}
-              assignments={teamAssignments}
-              onChange={setTeamAssignments}
-            />
-          </div>
-        )}
-
-        {/* Money Game (Match Setup) - Only for Match Play */}
-        {format === 'match_play' && assignedPlayerIds.size >= 2 && (
-          <div className="mb-4">
-            {/* Auto-expand match setup for match play to make it prominent */}
-            {!matchConfig ? (
-              <Card className="p-4 border-gold/30 bg-gold/5">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/20 text-gold">
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="font-medium text-text-0">Set Up Money Game</p>
-                    <p className="text-xs text-text-2">Configure teams and stakes for match play</p>
-                  </div>
-                </div>
-                {showMatchSetup ? (
-                  <MatchSetupForm
-                    players={players.filter((p) => assignedPlayerIds.has(p.id))}
-                    onMatchConfigured={(config) => {
-                      setMatchConfig(config)
-                      setMatchEnabled(true)
-                      setShowMatchSetup(false)
-                    }}
-                    onCancel={() => setShowMatchSetup(false)}
-                  />
-                ) : (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setShowMatchSetup(true)}
-                    className="w-full"
-                  >
-                    Configure Money Game
-                  </Button>
-                )}
-              </Card>
+                  Can&apos;t find your course? →
+                </button>
+              </>
             ) : (
-              <MatchSetupToggle
-                enabled={matchEnabled}
-                onToggle={(enabled) => {
-                  setMatchEnabled(enabled)
-                  if (!enabled) {
-                    setMatchConfig(null)
-                  }
-                }}
-                matchConfig={matchConfig}
-                onConfigure={() => setShowMatchSetup(true)}
-                players={players.filter((p) => assignedPlayerIds.has(p.id))}
-              />
+              <div className="space-y-3">
+                <div className="rounded-xl bg-gold/5 border border-gold/20 p-3">
+                  <p className="text-sm text-gold/80">
+                    <span className="font-medium">Manual mode:</span> All holes default to Par 4. No handicap strokes.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setManualCourseMode(false)}
+                  className="text-sm text-accent hover:underline"
+                >
+                  ← Back to course search
+                </button>
+              </div>
             )}
           </div>
-        )}
 
-        {/* Junk/Side Bets */}
-        {assignedPlayerIds.size >= 2 && (
-          <div className="mb-4">
-            <JunkConfigForm
-              config={junkConfig}
-              onChange={setJunkConfig}
-            />
-          </div>
-        )}
-
-        {/* Start immediately option */}
-        <Card className="p-4 mb-4">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={startImmediately}
-              onChange={(e) => setStartImmediately(e.target.checked)}
-              className="h-5 w-5 rounded border-stroke bg-bg-2 text-accent focus:ring-accent focus:ring-offset-bg-0"
-            />
-            <div>
-              <p className="font-medium text-text-0">Start scoring immediately</p>
-              <p className="text-sm text-text-2">Jump straight to the scorecard after creating</p>
+          {/* ── Section 4: Players ── */}
+          <div className="rounded-xl bg-bg-1 border border-stroke/40 p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-sm font-bold uppercase tracking-wider text-text-2">
+                {groups.length === 1 ? 'Players' : 'Groups'}
+              </h2>
+              <div className="flex items-center gap-2">
+                {unassignedPlayers.length > 0 && groups[0] && assignedPlayerIds.size === 0 && (
+                  <button
+                    type="button"
+                    onClick={addAllPlayers}
+                    className="text-xs text-accent font-medium hover:underline"
+                  >
+                    Add All ({unassignedPlayers.length})
+                  </button>
+                )}
+                {(groups.length > 1 || players.length > 4) && (
+                  <button
+                    type="button"
+                    onClick={addGroup}
+                    className="flex items-center gap-1 rounded-lg bg-bg-2 px-2.5 py-1.5 text-xs font-medium text-text-1 active:bg-bg-0"
+                  >
+                    <PlusIcon /> Group
+                  </button>
+                )}
+              </div>
             </div>
-          </label>
-        </Card>
 
-        {error && (
-          <div className="mb-4 rounded-card bg-bad/10 p-4 text-bad">
-            {error}
+            {players.length === 0 ? (
+              <div className="text-center py-6">
+                <div className="text-3xl mb-2">🏌️</div>
+                <p className="text-text-2 text-sm mb-3">No players added yet</p>
+                <Link href={`/trip/${tripId}/players`}>
+                  <Button type="button" variant="secondary" size="default">
+                    Add Players First
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {groups.map((group, index) => (
+                  <div
+                    key={group.id}
+                    className={groups.length === 1 ? '' : 'rounded-xl border border-stroke/40 bg-bg-2 p-3'}
+                  >
+                    {/* Group header (only show for multiple groups) */}
+                    {groups.length > 1 && (
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="font-display text-sm font-bold text-text-0">
+                          Group {index + 1}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            value={group.teeTime}
+                            onChange={(e) => updateGroupTeeTime(group.id, e.target.value)}
+                            className="rounded-lg border border-stroke bg-bg-1 px-3 py-1.5 text-sm text-text-0 focus:border-accent focus:outline-none text-[16px]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeGroup(group.id)}
+                            className="p-1.5 text-text-2 hover:text-bad transition-colors rounded-lg active:bg-bg-1"
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Players as tap-to-assign chips */}
+                    {group.playerIds.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {group.playerIds.map((playerId) => {
+                          const player = players.find((p) => p.id === playerId)
+                          if (!player) return null
+                          return (
+                            <div
+                              key={playerId}
+                              className="flex items-center gap-1.5 rounded-full bg-accent/10 border border-accent/20 pl-3 pr-1.5 py-1.5 animate-fadeIn"
+                            >
+                              <span className="text-sm font-medium text-text-0">{player.name}</span>
+                              {player.handicap_index !== null && (
+                                <span className="text-[11px] text-text-2">{player.handicap_index}</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => removePlayerFromGroup(group.id, playerId)}
+                                className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-bad/20 text-text-2 hover:text-bad transition-colors"
+                              >
+                                <XIcon />
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Unassigned players as tap targets */}
+                    {unassignedPlayers.length > 0 && (
+                      <div>
+                        {group.playerIds.length === 0 && groups.length === 1 && (
+                          <p className="text-xs text-text-2 mb-2">Tap to add players:</p>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          {unassignedPlayers.map((player) => (
+                            <button
+                              key={player.id}
+                              type="button"
+                              onClick={() => addPlayerToGroup(group.id, player.id)}
+                              className="flex items-center gap-1.5 rounded-full border border-stroke bg-bg-2 px-3 py-1.5 text-sm text-text-1 transition-all active:scale-95 active:bg-accent/10 active:border-accent/30 hover:border-accent/40"
+                            >
+                              <span className="text-text-2">+</span>
+                              <span>{player.name}</span>
+                              {player.handicap_index !== null && (
+                                <span className="text-[11px] text-text-2/60">{player.handicap_index}</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {group.playerIds.length === 0 && unassignedPlayers.length === 0 && (
+                      <p className="text-sm text-text-2">All players assigned</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Submit */}
-        <div className="flex gap-3">
-          <Link href={`/trip/${tripId}`} className="flex-1">
-            <Button type="button" variant="secondary" className="w-full">
-              Cancel
-            </Button>
-          </Link>
-          <Button
-            type="submit"
-            loading={submitting}
-            disabled={submitting || !name.trim() || players.length === 0 || (!selectedTeeId && !manualCourseMode)}
-            className="flex-1"
+          {/* Team Assignment (for Points Hi/Lo and Stableford) */}
+          {formatRequiresTeams(format) && assignedPlayerIds.size > 0 && (
+            <div className="animate-fadeIn">
+              <TeamAssignmentForm
+                players={players.filter((p) => assignedPlayerIds.has(p.id))}
+                assignments={teamAssignments}
+                onChange={setTeamAssignments}
+              />
+            </div>
+          )}
+
+          {/* Money Game (Match Setup) - Only for Match Play */}
+          {format === 'match_play' && assignedPlayerIds.size >= 2 && (
+            <div className="animate-fadeIn">
+              {/* Auto-expand match setup for match play to make it prominent */}
+              {!matchConfig ? (
+                <div className="rounded-xl border border-gold/30 bg-gold/5 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/20 text-gold">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-medium text-text-0">Money Game</p>
+                      <p className="text-xs text-text-2">Configure teams and stakes</p>
+                    </div>
+                  </div>
+                  {showMatchSetup ? (
+                    <MatchSetupForm
+                      players={players.filter((p) => assignedPlayerIds.has(p.id))}
+                      onMatchConfigured={(config) => {
+                        setMatchConfig(config)
+                        setMatchEnabled(true)
+                        setShowMatchSetup(false)
+                      }}
+                      onCancel={() => setShowMatchSetup(false)}
+                    />
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setShowMatchSetup(true)}
+                      className="w-full"
+                    >
+                      Configure Money Game
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <MatchSetupToggle
+                  enabled={matchEnabled}
+                  onToggle={(enabled) => {
+                    setMatchEnabled(enabled)
+                    if (!enabled) {
+                      setMatchConfig(null)
+                    }
+                  }}
+                  matchConfig={matchConfig}
+                  onConfigure={() => setShowMatchSetup(true)}
+                  players={players.filter((p) => assignedPlayerIds.has(p.id))}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Junk/Side Bets */}
+          {assignedPlayerIds.size >= 2 && (
+            <div className="animate-fadeIn">
+              <JunkConfigForm
+                config={junkConfig}
+                onChange={setJunkConfig}
+              />
+            </div>
+          )}
+
+          {/* Start immediately toggle */}
+          <button
+            type="button"
+            onClick={() => setStartImmediately(!startImmediately)}
+            className={`w-full rounded-xl border p-4 text-left transition-all ${
+              startImmediately
+                ? 'border-good/40 bg-good/5'
+                : 'border-stroke/40 bg-bg-1'
+            }`}
           >
-            Create Round
-          </Button>
-        </div>
-      </form>
-    </LayoutContainer>
+            <div className="flex items-center gap-3">
+              <div className={`flex h-6 w-6 items-center justify-center rounded-lg transition-colors ${
+                startImmediately ? 'bg-good text-white' : 'border-2 border-stroke bg-bg-2'
+              }`}>
+                {startImmediately && (
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                )}
+              </div>
+              <div>
+                <p className="font-medium text-text-0 text-sm">Start scoring immediately</p>
+                <p className="text-xs text-text-2 mt-0.5">Jump straight to the scorecard</p>
+              </div>
+            </div>
+          </button>
+
+          {error && (
+            <div className="rounded-xl bg-bad/10 border border-bad/20 px-4 py-3 text-sm text-bad animate-fadeIn">
+              {error}
+              <button onClick={() => setError(null)} className="ml-2 underline text-bad/70">dismiss</button>
+            </div>
+          )}
+
+          {/* Submit area — sticky bottom */}
+          <div className="sticky bottom-0 bg-gradient-to-t from-bg-0 via-bg-0 to-transparent pt-4 pb-2 -mx-4 px-4">
+            <div className="flex gap-3">
+              <Link href={`/trip/${tripId}`} className="flex-shrink-0">
+                <Button type="button" variant="secondary" className="px-6">
+                  Cancel
+                </Button>
+              </Link>
+              <Button
+                type="submit"
+                loading={submitting}
+                disabled={submitting || !name.trim() || players.length === 0 || (!selectedTeeId && !manualCourseMode)}
+                className="flex-1"
+                size="large"
+              >
+                {startImmediately ? 'Create & Start Scoring →' : 'Create Round'}
+              </Button>
+            </div>
+          </div>
+        </form>
+      </LayoutContainer>
+    </div>
   )
 }
 
