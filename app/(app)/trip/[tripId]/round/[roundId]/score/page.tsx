@@ -397,229 +397,276 @@ export default function ScorePage() {
 
   if (loading) {
     return (
-      <LayoutContainer className="py-6">
-        <div className="text-center text-text-2">Loading round...</div>
-      </LayoutContainer>
+      <div className="min-h-screen bg-bg-0">
+        <LayoutContainer className="py-4">
+          {/* Skeleton header */}
+          <div className="mb-4 animate-pulse">
+            <div className="h-4 w-24 rounded bg-bg-2 mb-2" />
+            <div className="h-5 w-40 rounded bg-bg-2" />
+          </div>
+          {/* Skeleton hole info */}
+          <div className="mb-4 rounded-xl bg-bg-1 border border-stroke/40 p-4 animate-pulse">
+            <div className="flex justify-between mb-2">
+              <div className="h-8 w-24 rounded bg-bg-2" />
+              <div className="h-8 w-16 rounded bg-bg-2" />
+            </div>
+            <div className="h-1 rounded-full bg-bg-2 mt-3" />
+          </div>
+          {/* Skeleton hole nav */}
+          <div className="flex gap-1.5 mb-4 animate-pulse">
+            {[...Array(9)].map((_, i) => (
+              <div key={i} className="h-9 w-9 rounded-lg bg-bg-2" />
+            ))}
+          </div>
+          {/* Skeleton player rows */}
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="mb-2 rounded-xl bg-bg-1 border border-stroke/40 p-3 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-full bg-bg-2" />
+                <div className="flex-1">
+                  <div className="h-4 w-24 rounded bg-bg-2 mb-1" />
+                  <div className="h-3 w-16 rounded bg-bg-2" />
+                </div>
+                <div className="h-12 w-12 rounded-xl bg-bg-2" />
+              </div>
+            </div>
+          ))}
+          {/* Skeleton keypad */}
+          <div className="mt-4 grid grid-cols-3 gap-2.5">
+            {[...Array(12)].map((_, i) => (
+              <div key={i} className="h-14 rounded-xl bg-bg-1 border border-stroke/30" />
+            ))}
+          </div>
+        </LayoutContainer>
+      </div>
     )
   }
 
   if (error || !round) {
     return (
-      <LayoutContainer className="py-6">
-        <div className="text-center">
-          <p className="mb-4 text-bad">{error || 'Round not found'}</p>
-          <Link href={`/trip/${tripId}`}>
-            <Button variant="secondary">Back to Trip</Button>
-          </Link>
-        </div>
-      </LayoutContainer>
+      <div className="min-h-screen bg-bg-0">
+        <LayoutContainer className="py-6">
+          <div className="text-center py-12">
+            <div className="text-4xl mb-4">😔</div>
+            <p className="mb-2 text-lg font-medium text-text-0">{error || 'Round not found'}</p>
+            <p className="text-sm text-text-2 mb-6">Something went wrong loading this round.</p>
+            <Link href={`/trip/${tripId}`}>
+              <Button variant="secondary">← Back to Trip</Button>
+            </Link>
+          </div>
+        </LayoutContainer>
+      </div>
     )
   }
 
   const course = (round.tees as any)?.courses
 
   return (
-    <LayoutContainer className="py-4">
-      {/* Header */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="min-w-0 flex-1">
-          <Link
-            href={`/trip/${tripId}/round/${roundId}`}
-            className="mb-1 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
-          >
-            <BackIcon />
-            {round.name}
-          </Link>
-          {course && (
-            <p className="text-sm text-text-1 truncate">{course.name}</p>
-          )}
+    <div className="min-h-screen bg-bg-0">
+      <LayoutContainer className="py-3 pb-safe">
+        {/* Compact header */}
+        <div className="mb-3 flex items-center justify-between">
+          <div className="min-w-0 flex-1">
+            <Link
+              href={`/trip/${tripId}/round/${roundId}`}
+              className="inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
+            >
+              <BackIcon />
+              <span className="truncate max-w-[140px]">{round.name}</span>
+            </Link>
+            {course && (
+              <p className="text-xs text-text-2/60 truncate mt-0.5">{course.name}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {saving && (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+            )}
+            <ShareButton
+              title={round?.name || 'Round'}
+              text={buildScoreShareText(round, players, scores, matchState, currentHole)}
+            />
+            <LiveIndicator isConnected={isConnected} />
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {saving && (
-            <span className="text-xs text-text-2">Saving...</span>
-          )}
-          <ShareButton
-            title={round?.name || 'Round'}
-            text={buildScoreShareText(round, players, scores, matchState, currentHole)}
+
+        {/* Competition Badge */}
+        {competitionName && (
+          <CompetitionBadge competitionName={competitionName} className="mb-3" />
+        )}
+
+        {/* Live update toast */}
+        {liveToast && (
+          <div className="mb-2 flex items-center justify-center gap-1.5 text-xs text-good/80 animate-fadeIn">
+            <div className="h-1.5 w-1.5 rounded-full bg-good animate-pulse" />
+            Scores updated live
+          </div>
+        )}
+
+        {/* Format Strip (for Points Hi/Lo with teams configured) */}
+        {formatState && (
+          <FormatStrip
+            formatState={formatState}
+            currentHole={currentHole}
+            tripId={tripId}
+            roundId={roundId}
+            className="mb-3"
           />
-          <LiveIndicator isConnected={isConnected} />
-        </div>
-      </div>
+        )}
 
-      {/* Competition Badge */}
-      {competitionName && (
-        <CompetitionBadge competitionName={competitionName} className="mb-3" />
-      )}
+        {/* Nassau Strip */}
+        {nassauState && (
+          <NassauStrip
+            nassauState={nassauState}
+            currentHole={currentHole}
+            tripId={tripId}
+            roundId={roundId}
+            className="mb-3"
+          />
+        )}
 
-      {/* Live update toast */}
-      {liveToast && (
-        <div className="mb-2 text-center text-xs text-good/80 animate-pulse">
-          Scores updated
-        </div>
-      )}
+        {/* Skins Strip */}
+        {skinsState && (
+          <SkinsStrip
+            skinsState={skinsState}
+            currentHole={currentHole}
+            tripId={tripId}
+            roundId={roundId}
+            className="mb-3"
+          />
+        )}
 
-      {/* Format Strip (for Points Hi/Lo with teams configured) */}
-      {formatState && (
-        <FormatStrip
-          formatState={formatState}
-          currentHole={currentHole}
-          tripId={tripId}
-          roundId={roundId}
-          className="mb-4"
-        />
-      )}
+        {/* Wolf Strip */}
+        {wolfState && (
+          <WolfStrip
+            wolfState={wolfState}
+            currentHole={currentHole}
+            tripId={tripId}
+            roundId={roundId}
+            onWolfDecision={async (holeNumber, partnerId, isLoneWolf) => {
+              await makeWolfDecisionAction({
+                roundId,
+                holeNumber,
+                partnerId,
+                isLoneWolf,
+              })
+              await refreshFormatState()
+            }}
+            className="mb-3"
+          />
+        )}
 
-      {/* Nassau Strip */}
-      {nassauState && (
-        <NassauStrip
-          nassauState={nassauState}
-          currentHole={currentHole}
-          tripId={tripId}
-          roundId={roundId}
-          className="mb-4"
-        />
-      )}
-
-      {/* Skins Strip */}
-      {skinsState && (
-        <SkinsStrip
-          skinsState={skinsState}
-          currentHole={currentHole}
-          tripId={tripId}
-          roundId={roundId}
-          className="mb-4"
-        />
-      )}
-
-      {/* Wolf Strip */}
-      {wolfState && (
-        <WolfStrip
-          wolfState={wolfState}
-          currentHole={currentHole}
-          tripId={tripId}
-          roundId={roundId}
-          onWolfDecision={async (holeNumber, partnerId, isLoneWolf) => {
-            await makeWolfDecisionAction({
-              roundId,
-              holeNumber,
-              partnerId,
-              isLoneWolf,
-            })
-            await refreshFormatState()
-          }}
-          className="mb-4"
-        />
-      )}
-
-      {/* Bet not configured prompt for new formats */}
-      {formatError && (round?.format === 'nassau' || round?.format === 'skins' || round?.format === 'wolf') && (
-        <div className="mb-4 rounded-card border border-gold/30 bg-gold/5 p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-gold text-lg">💰</span>
-              <span className="text-sm text-text-1">
-                {round.format === 'nassau' ? 'Nassau' : round.format === 'skins' ? 'Skins' : 'Wolf'} bet not set up yet
-              </span>
+        {/* Bet not configured prompt for new formats */}
+        {formatError && (round?.format === 'nassau' || round?.format === 'skins' || round?.format === 'wolf') && (
+          <div className="mb-3 rounded-xl border border-gold/30 bg-gold/5 p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-gold text-lg">💰</span>
+                <span className="text-sm text-text-1">
+                  {round.format === 'nassau' ? 'Nassau' : round.format === 'skins' ? 'Skins' : 'Wolf'} bet not set up
+                </span>
+              </div>
+              <Link href={`/trip/${tripId}/round/${roundId}`}>
+                <Button variant="secondary" size="default">
+                  Set Up
+                </Button>
+              </Link>
             </div>
+          </div>
+        )}
+
+        {/* Teams Not Set (for Points Hi/Lo without team assignments) */}
+        {formatError && round?.format === 'points_hilo' && (
+          <div className="mb-3 rounded-xl border border-gold/50 bg-gold/5 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-text-0">Teams not set yet</p>
+                <p className="text-sm text-text-2">
+                  Points Hi/Lo requires team assignments
+                </p>
+              </div>
+              <Link href={`/trip/${tripId}/round/${roundId}`}>
+                <Button variant="secondary" size="default">
+                  Assign Teams
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Match Strip (for Match Play with money game) */}
+        {matchState && !formatState && (
+          <MatchStrip
+            matchState={matchState}
+            currentHole={currentHole}
+            tripId={tripId}
+            roundId={roundId}
+            onPressAdded={refreshMatchState}
+            narratives={narratives.map(n => ({ text: n.text, intensity: n.intensity }))}
+            className="mb-3"
+          />
+        )}
+
+        {/* No money game prompt (for Match Play without money game set up) */}
+        {!matchState && !formatState && round?.format === 'match_play' && (
+          <div className="mb-3 rounded-xl border border-gold/30 bg-gold/5 p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-gold text-lg">💰</span>
+                <span className="text-sm text-text-1">No money game yet</span>
+              </div>
+              <Link href={`/trip/${tripId}/round/${roundId}/match/setup`}>
+                <Button variant="secondary" size="default">
+                  Set Up
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Scorer */}
+        {round?.format === 'scramble' ? (
+          <ScrambleScorerWrapper
+            round={round}
+            holes={holes}
+            scores={scores}
+            onScoreChange={handleScoreChange}
+            onComplete={handleComplete}
+          />
+        ) : players.length > 0 ? (
+          <GroupScorer
+            roundId={roundId}
+            players={players}
+            holes={holes}
+            scores={scores}
+            onScoreChange={handleScoreChange}
+            onComplete={handleComplete}
+            onStateChange={setScorerState}
+            extraContent={
+              junkConfig ? (
+                <JunkBetButtons
+                  roundId={roundId}
+                  players={players}
+                  selectedPlayerId={scorerState.selectedPlayerId}
+                  currentHole={scorerState.currentHole}
+                  par={scorerState.par}
+                  junkConfig={junkConfig}
+                  className="mb-4"
+                />
+              ) : undefined
+            }
+          />
+        ) : (
+          <div className="text-center py-12">
+            <div className="text-4xl mb-3">🏌️</div>
+            <p className="text-text-2 mb-4">No players in this round</p>
             <Link href={`/trip/${tripId}/round/${roundId}`}>
-              <Button variant="secondary" size="default">
-                Set Up
-              </Button>
+              <Button variant="secondary">← Back to Round</Button>
             </Link>
           </div>
-        </div>
-      )}
-
-      {/* Teams Not Set (for Points Hi/Lo without team assignments) */}
-      {formatError && round?.format === 'points_hilo' && (
-        <div className="mb-4 rounded-card border border-gold/50 bg-gold/5 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-text-0">Teams not set yet</p>
-              <p className="text-sm text-text-2">
-                Points Hi/Lo requires team assignments to track scoring
-              </p>
-            </div>
-            <Link href={`/trip/${tripId}/round/${roundId}`}>
-              <Button variant="secondary" size="default">
-                Assign Teams
-              </Button>
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {/* Match Strip (for Match Play with money game) */}
-      {matchState && !formatState && (
-        <MatchStrip
-          matchState={matchState}
-          currentHole={currentHole}
-          tripId={tripId}
-          roundId={roundId}
-          onPressAdded={refreshMatchState}
-          narratives={narratives.map(n => ({ text: n.text, intensity: n.intensity }))}
-          className="mb-4"
-        />
-      )}
-
-      {/* No money game prompt (for Match Play without money game set up) */}
-      {!matchState && !formatState && round?.format === 'match_play' && (
-        <div className="mb-4 rounded-card border border-gold/30 bg-gold/5 p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-gold text-lg">💰</span>
-              <span className="text-sm text-text-1">No money game yet</span>
-            </div>
-            <Link href={`/trip/${tripId}/round/${roundId}/match/setup`}>
-              <Button variant="secondary" size="default">
-                Set Up
-              </Button>
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {/* Scorer */}
-      {round?.format === 'scramble' ? (
-        <ScrambleScorerWrapper
-          round={round}
-          holes={holes}
-          scores={scores}
-          onScoreChange={handleScoreChange}
-          onComplete={handleComplete}
-        />
-      ) : players.length > 0 ? (
-        <GroupScorer
-          roundId={roundId}
-          players={players}
-          holes={holes}
-          scores={scores}
-          onScoreChange={handleScoreChange}
-          onComplete={handleComplete}
-          onStateChange={setScorerState}
-          extraContent={
-            junkConfig ? (
-              <JunkBetButtons
-                roundId={roundId}
-                players={players}
-                selectedPlayerId={scorerState.selectedPlayerId}
-                currentHole={scorerState.currentHole}
-                par={scorerState.par}
-                junkConfig={junkConfig}
-                className="mb-4"
-              />
-            ) : undefined
-          }
-        />
-      ) : (
-        <div className="text-center py-8">
-          <p className="text-text-2 mb-4">No players in this round</p>
-          <Link href={`/trip/${tripId}/round/${roundId}`}>
-            <Button variant="secondary">Back to Round</Button>
-          </Link>
-        </div>
-      )}
-    </LayoutContainer>
+        )}
+      </LayoutContainer>
+    </div>
   )
 }
 
@@ -706,8 +753,9 @@ function ScrambleScorerWrapper({
   // Need at least 1 player per team
   if (team1Players.length === 0 || team2Players.length === 0) {
     return (
-      <div className="text-center py-8">
-        <p className="text-text-2 mb-2">Teams not set up for scramble</p>
+      <div className="text-center py-12">
+        <div className="text-4xl mb-3">👥</div>
+        <p className="text-text-0 font-medium mb-2">Teams not set up for scramble</p>
         <p className="text-xs text-text-2 mb-4">
           Each team needs at least 1 player with a team assignment.
         </p>
