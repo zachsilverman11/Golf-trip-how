@@ -577,6 +577,51 @@ export default function NewRoundPage() {
             </div>
           )}
 
+          {/* Nassau Upsell — show when Match Play is selected */}
+          {format === 'match_play' && (
+            <div className="animate-fadeIn rounded-xl border border-accent/40 bg-accent/5 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/20">
+                    <span className="text-lg">⚡</span>
+                  </div>
+                  <div>
+                    <p className="font-display font-bold text-accent text-sm">UPGRADE TO NASSAU</p>
+                    <p className="text-xs text-text-2">3 matches in 1 — Front 9 + Back 9 + Overall</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormat('nassau')}
+                  className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-bg-0 active:scale-95 transition-transform"
+                >
+                  Switch
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Press Settings — show for match-based formats */}
+          {(format === 'match_play' || format === 'nassau') && (
+            <div className="animate-fadeIn rounded-xl border border-stroke/40 bg-bg-1 p-4">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10">
+                  <span className="font-display text-xs font-extrabold tracking-widest text-accent">P</span>
+                </div>
+                <div className="flex-1">
+                  <p className="font-display font-bold text-text-0">Press</p>
+                  <p className="text-xs text-text-2">When you&apos;re down, press to double the action</p>
+                </div>
+                <div className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-bold text-accent tracking-wide">
+                  ALWAYS ON
+                </div>
+              </div>
+              <p className="text-xs text-text-2 mt-2 ml-[52px]">
+                Press Front 9, Back 9, or the full match at any point during play. It&apos;s what we&apos;re named after.
+              </p>
+            </div>
+          )}
+
           {/* Money Game (Match Setup) - Only for Match Play */}
           {format === 'match_play' && assignedPlayerIds.size >= 2 && (
             <div className="animate-fadeIn">
