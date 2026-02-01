@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
   if (!trip) return NextResponse.json({ error: 'Trip not found' }, { status: 404 })
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://golf-trip-how.vercel.app'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://golf-trip-hq.vercel.app'
   const inviteUrl = `${appUrl}/login?redirect=/trip/${tripId}`
 
   const { subject, html } = tripInviteEmail({
