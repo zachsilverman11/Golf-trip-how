@@ -15,6 +15,7 @@ export interface CreateNassauInput {
   stakePerMan: number
   autoPress?: boolean
   autoPressThreshold?: number
+  highBallTiebreaker?: boolean
   teamAPlayer1Id: string
   teamAPlayer2Id?: string
   teamBPlayer1Id: string
@@ -38,6 +39,7 @@ export async function createNassauBetAction(input: CreateNassauInput): Promise<{
         stake_per_man: input.stakePerMan,
         auto_press: input.autoPress ?? false,
         auto_press_threshold: input.autoPressThreshold ?? 2,
+        high_ball_tiebreaker: input.highBallTiebreaker ?? false,
         team_a_player1_id: input.teamAPlayer1Id,
         team_a_player2_id: input.teamAPlayer2Id ?? null,
         team_b_player1_id: input.teamBPlayer1Id,

@@ -225,6 +225,7 @@ export interface DbNassauBet {
   stake_per_man: number
   auto_press: boolean
   auto_press_threshold: number
+  high_ball_tiebreaker: boolean
   team_a_player1_id: string
   team_a_player2_id: string | null
   team_b_player1_id: string

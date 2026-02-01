@@ -22,6 +22,7 @@ import { DEFAULT_JUNK_CONFIG, type RoundJunkConfig } from '@/lib/junk-types'
 import { getPlayersAction } from '@/lib/supabase/player-actions'
 import { createRoundWithGroupsAction } from '@/lib/supabase/round-actions'
 import { createMatchAction } from '@/lib/supabase/match-actions'
+import { createNassauBetAction } from '@/lib/supabase/nassau-actions'
 import type { DbPlayer } from '@/lib/supabase/types'
 import type { CreateMatchInput } from '@/lib/supabase/match-types'
 
@@ -55,6 +56,11 @@ export default function NewRoundPage() {
 
   // Junk/side bets config
   const [junkConfig, setJunkConfig] = useState<RoundJunkConfig>({ ...DEFAULT_JUNK_CONFIG })
+
+  // Nassau config
+  const [nassauStake, setNassauStake] = useState(5)
+  const [nassauAutoPress, setNassauAutoPress] = useState(false)
+  const [nassauHighBallTiebreaker, setNassauHighBallTiebreaker] = useState(false)
 
   // Match setup (only for match_play)
   const [matchEnabled, setMatchEnabled] = useState(false)
@@ -250,7 +256,30 @@ export default function NewRoundPage() {
 
         if (!matchResult.success) {
           console.error('Failed to create match:', matchResult.error)
-          // Continue to round page even if match creation fails
+        }
+      }
+
+      // Create nassau bet if format is nassau
+      if (format === 'nassau' && teamAssignments) {
+        const team1Players = Object.entries(teamAssignments).filter(([, t]) => t === 1).map(([id]) => id)
+        const team2Players = Object.entries(teamAssignments).filter(([, t]) => t === 2).map(([id]) => id)
+
+        if (team1Players.length >= 1 && team2Players.length >= 1) {
+          const nassauResult = await createNassauBetAction({
+            roundId: result.roundId,
+            stakePerMan: nassauStake,
+            autoPress: nassauAutoPress,
+            autoPressThreshold: 2,
+            highBallTiebreaker: nassauHighBallTiebreaker,
+            teamAPlayer1Id: team1Players[0],
+            teamAPlayer2Id: team1Players[1],
+            teamBPlayer1Id: team2Players[0],
+            teamBPlayer2Id: team2Players[1],
+          })
+
+          if (!nassauResult.success) {
+            console.error('Failed to create Nassau bet:', nassauResult.error)
+          }
         }
       }
 
@@ -599,6 +628,76 @@ export default function NewRoundPage() {
                 </button>
               </div>
             </div>
+          )}
+
+          {/* Nassau Settings — show when Nassau is selected */}
+          {format === 'nassau' && (
+            <Card className="p-4 animate-fadeIn">
+              <h3 className="font-display text-lg font-bold text-text-0 mb-4">Nassau Settings</h3>
+
+              {/* Stake */}
+              <div className="mb-4">
+                <label className="block text-sm text-text-2 mb-2">Stake per Man (per bet)</label>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setNassauStake(Math.max(1, nassauStake - 1))}
+                    className="flex h-10 w-10 items-center justify-center rounded-lg bg-bg-2 text-text-1 active:bg-bg-0"
+                  >−</button>
+                  <div className="flex h-10 items-center justify-center rounded-lg bg-bg-2 px-4 min-w-[80px] text-center font-bold text-accent text-lg tabular-nums">
+                    ${nassauStake}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNassauStake(nassauStake + 1)}
+                    className="flex h-10 w-10 items-center justify-center rounded-lg bg-bg-2 text-text-1 active:bg-bg-0"
+                  >+</button>
+                </div>
+                <p className="text-xs text-text-2 mt-1">Total exposure: ${nassauStake * 3}/man (Front + Back + Overall)</p>
+              </div>
+
+              {/* High Ball Tiebreaker */}
+              <div className="flex items-center justify-between py-3 border-t border-stroke/40">
+                <div>
+                  <p className="font-medium text-text-0 text-sm">High Ball Tiebreaker</p>
+                  <p className="text-xs text-text-2">When low nets tie, best high net breaks it</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setNassauHighBallTiebreaker(!nassauHighBallTiebreaker)}
+                  className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors ${
+                    nassauHighBallTiebreaker ? 'bg-accent' : 'bg-bg-2 border border-stroke'
+                  }`}
+                  role="switch"
+                  aria-checked={nassauHighBallTiebreaker}
+                >
+                  <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg absolute top-1 transition-transform ${
+                    nassauHighBallTiebreaker ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+
+              {/* Auto Press */}
+              <div className="flex items-center justify-between py-3 border-t border-stroke/40">
+                <div>
+                  <p className="font-medium text-text-0 text-sm">Auto-Press When Down 2</p>
+                  <p className="text-xs text-text-2">Automatically press when trailing by 2 in any sub-match</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setNassauAutoPress(!nassauAutoPress)}
+                  className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors ${
+                    nassauAutoPress ? 'bg-accent' : 'bg-bg-2 border border-stroke'
+                  }`}
+                  role="switch"
+                  aria-checked={nassauAutoPress}
+                >
+                  <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg absolute top-1 transition-transform ${
+                    nassauAutoPress ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+            </Card>
           )}
 
           {/* Press Settings — show for match-based formats */}
