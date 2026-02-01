@@ -51,6 +51,7 @@ export function GroupScorer({
     players[0]?.id || null
   )
   const [inputValue, setInputValue] = useState<string>('')
+  const [showNextHole, setShowNextHole] = useState(false)
 
   const currentHoleInfo = holes.find((h) => h.number === currentHole) || {
     number: currentHole,
@@ -151,6 +152,7 @@ export function GroupScorer({
   // Handle hole change
   const handleHoleChange = useCallback((hole: number) => {
     setCurrentHole(hole)
+    setShowNextHole(false)
     if (selectedPlayerId) {
       const existingScore = scores[selectedPlayerId]?.[hole]
       setInputValue(existingScore !== null && existingScore !== undefined
@@ -165,38 +167,107 @@ export function GroupScorer({
                 scores[player.id]?.[currentHole] !== undefined
   )
 
+  // Auto-show next hole button with animation
+  useEffect(() => {
+    if (isCurrentHoleComplete) {
+      const timer = setTimeout(() => setShowNextHole(true), 200)
+      return () => clearTimeout(timer)
+    } else {
+      setShowNextHole(false)
+    }
+  }, [isCurrentHoleComplete])
+
+  // Auto-advance to next player after score entry
+  useEffect(() => {
+    if (!selectedPlayerId || !inputValue) return
+
+    const score = scores[selectedPlayerId]?.[currentHole]
+    if (score !== null && score !== undefined && score >= 1 && score <= 9) {
+      // Single digit score entered — auto-advance to next unscored player
+      const currentIdx = players.findIndex((p) => p.id === selectedPlayerId)
+      for (let i = 1; i <= players.length; i++) {
+        const nextIdx = (currentIdx + i) % players.length
+        const nextPlayer = players[nextIdx]
+        const nextScore = scores[nextPlayer.id]?.[currentHole]
+        if (nextScore === null || nextScore === undefined) {
+          // Small delay so user sees their entry
+          const timer = setTimeout(() => {
+            setSelectedPlayerId(nextPlayer.id)
+            setInputValue('')
+          }, 150)
+          return () => clearTimeout(timer)
+        }
+      }
+    }
+  }, [scores, selectedPlayerId, currentHole])
+
   // Navigate to next hole
   const goToNextHole = () => {
-    if (currentHole < 18) {
+    if (currentHole < (holes.length || 18)) {
       handleHoleChange(currentHole + 1)
+      // Select first player on next hole
+      if (players[0]) {
+        setSelectedPlayerId(players[0].id)
+        const existingScore = scores[players[0].id]?.[currentHole + 1]
+        setInputValue(existingScore !== null && existingScore !== undefined
+          ? String(existingScore) : '')
+      }
     } else if (onComplete) {
       onComplete()
     }
   }
 
+  // Progress indicator
+  const totalHoles = holes.length || 18
+  const completedCount = completedHoles.length
+  const progressPercent = Math.round((completedCount / totalHoles) * 100)
+
   return (
     <div className={cn('flex flex-col', className)}>
-      {/* Hole info header */}
-      <div className="mb-4 text-center">
-        <div className="text-text-2 text-sm mb-1">
-          Hole {currentHole} of {holes.length || 18}
+      {/* Hole info header — premium feel */}
+      <div className="mb-3 rounded-xl bg-bg-1 border border-stroke/40 p-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-baseline gap-2">
+            <span className="font-display text-3xl font-extrabold text-text-0">
+              Hole {currentHole}
+            </span>
+            <span className="text-sm text-text-2">of {totalHoles}</span>
+          </div>
+          <div className="text-right">
+            <span className="font-display text-2xl font-bold text-accent">
+              Par {currentHoleInfo.par}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center justify-center gap-4 text-sm">
-          <span className="font-display text-xl font-bold text-text-0">
-            Par {currentHoleInfo.par}
-          </span>
+        <div className="flex items-center gap-4 text-xs text-text-2">
           {currentHoleInfo.yards && (
-            <span className="text-text-2">{currentHoleInfo.yards} yd</span>
+            <span className="flex items-center gap-1">
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" />
+              </svg>
+              {currentHoleInfo.yards} yd
+            </span>
           )}
-          <span className="text-text-2" title="Stroke Index (handicap allocation)">
+          <span className="flex items-center gap-1">
             SI {currentHoleInfo.strokeIndex}
           </span>
+          <span className="ml-auto text-text-2/60 tabular-nums">
+            {completedCount}/{totalHoles} holes
+          </span>
+        </div>
+        {/* Progress bar */}
+        <div className="mt-2.5 h-1 rounded-full bg-bg-2 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-accent transition-all duration-500 ease-out"
+            style={{ width: `${progressPercent}%` }}
+          />
         </div>
       </div>
 
       {/* Hole navigator */}
       <HoleNavigator
         currentHole={currentHole}
+        totalHoles={totalHoles}
         completedHoles={completedHoles}
         onHoleSelect={handleHoleChange}
         className="mb-4"
@@ -229,15 +300,24 @@ export function GroupScorer({
       {/* Extra content (e.g., junk bet buttons) */}
       {extraContent}
 
-      {/* Next hole button */}
-      {isCurrentHoleComplete && (
-        <Button
-          onClick={goToNextHole}
-          size="large"
-          className="mb-4"
-        >
-          {currentHole < 18 ? `Next Hole (${currentHole + 1})` : 'Finish Round'}
-        </Button>
+      {/* Next hole button — animated entrance */}
+      {showNextHole && (
+        <div className="mb-4 animate-slideIn">
+          <button
+            onClick={goToNextHole}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-good py-4 font-display font-bold text-white text-base active:scale-[0.98] transition-transform shadow-lg shadow-good/20"
+          >
+            {currentHole < totalHoles ? (
+              <>
+                Next Hole →  Hole {currentHole + 1}
+              </>
+            ) : (
+              <>
+                🏁 Finish Round
+              </>
+            )}
+          </button>
+        </div>
       )}
 
       {/* Keypad */}

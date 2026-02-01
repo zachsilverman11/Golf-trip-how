@@ -20,6 +20,7 @@ import {
 } from '@/components/round'
 import { DEFAULT_JUNK_CONFIG, type RoundJunkConfig } from '@/lib/junk-types'
 import { getPlayersAction } from '@/lib/supabase/player-actions'
+import { getTripAction } from '@/lib/supabase/trip-actions'
 import { createRoundWithGroupsAction } from '@/lib/supabase/round-actions'
 import { createMatchAction } from '@/lib/supabase/match-actions'
 import type { DbPlayer } from '@/lib/supabase/types'
@@ -39,6 +40,8 @@ export default function NewRoundPage() {
   // Form state
   const [name, setName] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [tripStartDate, setTripStartDate] = useState<string | null>(null)
+  const [tripEndDate, setTripEndDate] = useState<string | null>(null)
   const [teeTime, setTeeTime] = useState('')
   const [format, setFormat] = useState<RoundFormat>('stroke_play')
   const [scoringBasis, setScoringBasis] = useState<'gross' | 'net'>('net')
@@ -78,11 +81,32 @@ export default function NewRoundPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      const playersResult = await getPlayersAction(tripId)
+      const [playersResult, tripResult] = await Promise.all([
+        getPlayersAction(tripId),
+        getTripAction(tripId),
+      ])
 
       if (playersResult.players) {
         setPlayers(playersResult.players)
       }
+
+      // Constrain date picker to trip dates
+      if (tripResult.trip) {
+        const start = tripResult.trip.start_date
+        const end = tripResult.trip.end_date
+        if (start) setTripStartDate(start)
+        if (end) setTripEndDate(end)
+        // Default to trip start date (or today if within trip range)
+        if (start) {
+          const today = new Date().toISOString().split('T')[0]
+          if (today >= start && (!end || today <= end)) {
+            setDate(today)
+          } else {
+            setDate(start)
+          }
+        }
+      }
+
       setLoading(false)
     }
 
@@ -309,6 +333,8 @@ export default function NewRoundPage() {
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
+                  min={tripStartDate || undefined}
+                  max={tripEndDate || undefined}
                   required
                   className="w-full rounded-button border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                 />
