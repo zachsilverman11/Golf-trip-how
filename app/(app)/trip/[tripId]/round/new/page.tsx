@@ -4,10 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
-import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Badge } from '@/components/ui/Badge'
-import { Divider } from '@/components/ui/Divider'
 import { MatchSetupForm, MatchSetupToggle } from '@/components/match'
 import {
   RoundFormatSelector,
@@ -22,15 +19,18 @@ import { DEFAULT_JUNK_CONFIG, type RoundJunkConfig } from '@/lib/junk-types'
 import { getPlayersAction } from '@/lib/supabase/player-actions'
 import { createRoundWithGroupsAction } from '@/lib/supabase/round-actions'
 import { createMatchAction } from '@/lib/supabase/match-actions'
-import { createNassauBetAction } from '@/lib/supabase/nassau-actions'
 import type { DbPlayer } from '@/lib/supabase/types'
 import type { CreateMatchInput } from '@/lib/supabase/match-types'
+
+// ─── Types ─────────────────────────────────────────────
 
 interface GroupConfig {
   id: string
   playerIds: string[]
   teeTime: string
 }
+
+// ─── Main Component ────────────────────────────────────
 
 export default function NewRoundPage() {
   const params = useParams()
@@ -46,28 +46,23 @@ export default function NewRoundPage() {
   const [selectedTeeId, setSelectedTeeId] = useState<string | null>(null)
   const [selectedCourseName, setSelectedCourseName] = useState<string>('')
 
-  // Groups
+  // Groups (single group is default — multi-group for larger trips)
   const [groups, setGroups] = useState<GroupConfig[]>([
     { id: '1', playerIds: [], teeTime: '' },
   ])
 
-  // Team assignments (for Points Hi/Lo and Stableford)
+  // Team assignments
   const [teamAssignments, setTeamAssignments] = useState<Record<string, 1 | 2>>({})
 
-  // Junk/side bets config
+  // Junk/side bets
   const [junkConfig, setJunkConfig] = useState<RoundJunkConfig>({ ...DEFAULT_JUNK_CONFIG })
 
-  // Nassau config
-  const [nassauStake, setNassauStake] = useState(5)
-  const [nassauAutoPress, setNassauAutoPress] = useState(false)
-  const [nassauHighBallTiebreaker, setNassauHighBallTiebreaker] = useState(false)
-
-  // Match setup (only for match_play)
+  // Match setup (match_play only)
   const [matchEnabled, setMatchEnabled] = useState(false)
   const [matchConfig, setMatchConfig] = useState<Omit<CreateMatchInput, 'roundId'> | null>(null)
   const [showMatchSetup, setShowMatchSetup] = useState(false)
 
-  // Manual course mode (when user can't find their course)
+  // Manual course mode
   const [manualCourseMode, setManualCourseMode] = useState(false)
 
   // Data
@@ -76,33 +71,64 @@ export default function NewRoundPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Start scoring immediately option
+  // Options
   const [startImmediately, setStartImmediately] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
-  // Ref to prevent double submission
+  // Prevent double submit
   const isSubmittingRef = useRef(false)
 
   useEffect(() => {
     const loadData = async () => {
       const playersResult = await getPlayersAction(tripId)
-
       if (playersResult.players) {
         setPlayers(playersResult.players)
       }
       setLoading(false)
     }
-
     loadData()
   }, [tripId])
 
-  const assignedPlayerIds = new Set(groups.flatMap((g) => g.playerIds))
-  const unassignedPlayers = players.filter((p) => !assignedPlayerIds.has(p.id))
+  // ─── Player toggle logic ─────────────────────────────
+
+  const selectedPlayerIds = new Set(groups.flatMap((g) => g.playerIds))
+  const selectedCount = selectedPlayerIds.size
+
+  const togglePlayer = (playerId: string) => {
+    // For single group: toggle in/out of group 0
+    if (groups.length === 1) {
+      const group = groups[0]
+      if (group.playerIds.includes(playerId)) {
+        // Remove
+        setGroups([{ ...group, playerIds: group.playerIds.filter((id) => id !== playerId) }])
+        // Also clear team assignment
+        const next = { ...teamAssignments }
+        delete next[playerId]
+        setTeamAssignments(next)
+      } else {
+        // Add
+        setGroups([{ ...group, playerIds: [...group.playerIds, playerId] }])
+      }
+    }
+  }
+
+  const selectAllPlayers = () => {
+    if (groups.length === 1) {
+      setGroups([{ ...groups[0], playerIds: players.map((p) => p.id) }])
+    }
+  }
+
+  const deselectAllPlayers = () => {
+    if (groups.length === 1) {
+      setGroups([{ ...groups[0], playerIds: [] }])
+      setTeamAssignments({})
+    }
+  }
+
+  // ─── Multi-group helpers ──────────────────────────────
 
   const addGroup = () => {
-    setGroups([
-      ...groups,
-      { id: String(Date.now()), playerIds: [], teeTime: '' },
-    ])
+    setGroups([...groups, { id: String(Date.now()), playerIds: [], teeTime: '' }])
   }
 
   const removeGroup = (groupId: string) => {
@@ -111,12 +137,14 @@ export default function NewRoundPage() {
   }
 
   const addPlayerToGroup = (groupId: string, playerId: string) => {
+    // Remove from any other group first
     setGroups(
-      groups.map((g) =>
-        g.id === groupId
-          ? { ...g, playerIds: [...g.playerIds, playerId] }
-          : g
-      )
+      groups.map((g) => {
+        if (g.id === groupId) {
+          return { ...g, playerIds: [...g.playerIds.filter((id) => id !== playerId), playerId] }
+        }
+        return { ...g, playerIds: g.playerIds.filter((id) => id !== playerId) }
+      })
     )
   }
 
@@ -130,31 +158,14 @@ export default function NewRoundPage() {
     )
   }
 
-  const updateGroupTeeTime = (groupId: string, teeTime: string) => {
-    setGroups(
-      groups.map((g) =>
-        g.id === groupId ? { ...g, teeTime } : g
-      )
-    )
+  const updateGroupTeeTime = (groupId: string, time: string) => {
+    setGroups(groups.map((g) => (g.id === groupId ? { ...g, teeTime: time } : g)))
   }
 
-  // Quick-add all players to first group
-  const addAllPlayers = () => {
-    if (groups[0] && unassignedPlayers.length > 0) {
-      setGroups(
-        groups.map((g, idx) =>
-          idx === 0
-            ? { ...g, playerIds: [...g.playerIds, ...unassignedPlayers.map((p) => p.id)] }
-            : g
-        )
-      )
-    }
-  }
+  // ─── Submit ───────────────────────────────────────────
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    // Prevent double submission
     if (isSubmittingRef.current) return
     isSubmittingRef.current = true
 
@@ -164,38 +175,32 @@ export default function NewRoundPage() {
       return
     }
 
-    // Filter out empty groups
     const nonEmptyGroups = groups.filter((g) => g.playerIds.length > 0)
-
     if (nonEmptyGroups.length === 0) {
-      setError('Add at least one player to a group')
+      setError('Select at least one player')
       isSubmittingRef.current = false
       return
     }
 
-    // Validate team assignments for format rounds
     const allPlayerIds = nonEmptyGroups.flatMap((g) => g.playerIds)
     const requiresTeams = formatRequiresTeams(format)
 
     if (requiresTeams) {
       if ((format === 'points_hilo' || format === 'nassau') && allPlayerIds.length !== 4) {
-        setError(`${format === 'nassau' ? 'Nassau' : 'Points Hi/Lo'} format requires exactly 4 players`)
+        setError(`${format === 'nassau' ? 'Nassau' : 'Points Hi/Lo'} requires exactly 4 players`)
         isSubmittingRef.current = false
         return
       }
-
       if (format === 'scramble' && allPlayerIds.length < 2) {
-        setError('Scramble format requires at least 2 players')
+        setError('Scramble requires at least 2 players')
         isSubmittingRef.current = false
         return
       }
-
       const assignedPlayers = players.filter((p) => allPlayerIds.includes(p.id))
-      // For scramble, just check that every player has a team and both teams have at least 1
       if (format === 'scramble') {
-        const team1 = assignedPlayers.filter((p) => teamAssignments[p.id] === 1)
-        const team2 = assignedPlayers.filter((p) => teamAssignments[p.id] === 2)
-        if (team1.length < 1 || team2.length < 1) {
+        const t1 = assignedPlayers.filter((p) => teamAssignments[p.id] === 1)
+        const t2 = assignedPlayers.filter((p) => teamAssignments[p.id] === 2)
+        if (t1.length < 1 || t2.length < 1) {
           setError('Each team must have at least 1 player')
           isSubmittingRef.current = false
           return
@@ -207,16 +212,13 @@ export default function NewRoundPage() {
       }
     }
 
-    // Wolf requires exactly 4 players
     if (format === 'wolf' && allPlayerIds.length !== 4) {
-      setError('Wolf format requires exactly 4 players')
+      setError('Wolf requires exactly 4 players')
       isSubmittingRef.current = false
       return
     }
-
-    // Skins requires at least 2 players
     if (format === 'skins' && allPlayerIds.length < 2) {
-      setError('Skins format requires at least 2 players')
+      setError('Skins requires at least 2 players')
       isSubmittingRef.current = false
       return
     }
@@ -224,11 +226,8 @@ export default function NewRoundPage() {
     setSubmitting(true)
     setError(null)
 
-    // Build tee_time as ISO timestamp if both date and time provided
     let teeTimeTimestamp: string | null = null
-    if (teeTime) {
-      teeTimeTimestamp = `${date}T${teeTime}:00`
-    }
+    if (teeTime) teeTimeTimestamp = `${date}T${teeTime}:00`
 
     const result = await createRoundWithGroupsAction({
       trip_id: tripId,
@@ -247,43 +246,9 @@ export default function NewRoundPage() {
     })
 
     if (result.success && result.roundId) {
-      // Create match if configured
       if (matchEnabled && matchConfig) {
-        const matchResult = await createMatchAction({
-          ...matchConfig,
-          roundId: result.roundId,
-        })
-
-        if (!matchResult.success) {
-          console.error('Failed to create match:', matchResult.error)
-        }
+        await createMatchAction({ ...matchConfig, roundId: result.roundId }).catch(() => {})
       }
-
-      // Create nassau bet if format is nassau
-      if (format === 'nassau' && teamAssignments) {
-        const team1Players = Object.entries(teamAssignments).filter(([, t]) => t === 1).map(([id]) => id)
-        const team2Players = Object.entries(teamAssignments).filter(([, t]) => t === 2).map(([id]) => id)
-
-        if (team1Players.length >= 1 && team2Players.length >= 1) {
-          const nassauResult = await createNassauBetAction({
-            roundId: result.roundId,
-            stakePerMan: nassauStake,
-            autoPress: nassauAutoPress,
-            autoPressThreshold: 2,
-            highBallTiebreaker: nassauHighBallTiebreaker,
-            teamAPlayer1Id: team1Players[0],
-            teamAPlayer2Id: team1Players[1],
-            teamBPlayer1Id: team2Players[0],
-            teamBPlayer2Id: team2Players[1],
-          })
-
-          if (!nassauResult.success) {
-            console.error('Failed to create Nassau bet:', nassauResult.error)
-          }
-        }
-      }
-
-      // Redirect based on start immediately preference
       if (startImmediately) {
         router.push(`/trip/${tripId}/round/${result.roundId}/score`)
       } else {
@@ -296,15 +261,17 @@ export default function NewRoundPage() {
     }
   }
 
+  // ─── Loading ──────────────────────────────────────────
+
   if (loading) {
     return (
       <div className="min-h-screen bg-bg-0">
         <LayoutContainer className="py-6">
-          <div className="animate-pulse">
-            <div className="h-4 w-20 rounded bg-bg-2 mb-3" />
-            <div className="h-7 w-48 rounded bg-bg-2 mb-6" />
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 w-20 rounded bg-bg-2" />
+            <div className="h-7 w-48 rounded bg-bg-2" />
             {[1, 2, 3].map((i) => (
-              <div key={i} className="mb-4 rounded-xl bg-bg-1 border border-stroke/40 p-4">
+              <div key={i} className="rounded-xl bg-bg-1 border border-stroke/40 p-4">
                 <div className="h-5 w-32 rounded bg-bg-2 mb-3" />
                 <div className="h-10 rounded-lg bg-bg-2" />
               </div>
@@ -315,32 +282,133 @@ export default function NewRoundPage() {
     )
   }
 
+  // ─── Render ───────────────────────────────────────────
+
+  const isMultiGroup = groups.length > 1
+
   return (
     <div className="min-h-screen bg-bg-0">
-      <LayoutContainer className="py-6 pb-safe">
+      <LayoutContainer className="py-6 pb-32">
         {/* Header */}
         <div className="mb-6">
           <Link
             href={`/trip/${tripId}`}
             className="mb-3 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
           >
-            <BackIcon />
+            <ChevronLeftIcon />
             Back to trip
           </Link>
           <h1 className="font-display text-2xl font-bold text-text-0">
             New Round
           </h1>
-          <p className="text-sm text-text-2 mt-1">Set up your round, then get to scoring.</p>
+          <p className="text-sm text-text-2 mt-1">Pick your players, choose the format, tee it up.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* ── Section 1: Round Details ── */}
-          <div className="rounded-xl bg-bg-1 border border-stroke/40 p-4">
-            <h2 className="font-display text-sm font-bold uppercase tracking-wider text-text-2 mb-4">
-              Round Details
-            </h2>
+        <form onSubmit={handleSubmit} className="space-y-5">
 
+          {/* ═══════════════════════════════════════════════
+              SECTION 1: PLAYERS — the hero section
+              ═══════════════════════════════════════════════ */}
+          <section className="rounded-xl bg-bg-1 border border-stroke/40 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <h2 className="font-display text-sm font-bold uppercase tracking-wider text-text-2">
+                  Players
+                </h2>
+                {selectedCount > 0 && (
+                  <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-bold text-accent tabular-nums">
+                    {selectedCount}
+                  </span>
+                )}
+              </div>
+              {players.length > 0 && (
+                <button
+                  type="button"
+                  onClick={selectedCount === players.length ? deselectAllPlayers : selectAllPlayers}
+                  className="text-xs font-medium text-accent active:opacity-70"
+                >
+                  {selectedCount === players.length ? 'Deselect All' : 'Select All'}
+                </button>
+              )}
+            </div>
+
+            {players.length === 0 ? (
+              /* No players on this trip at all */
+              <div className="text-center py-6">
+                <div className="text-3xl mb-2">🏌️</div>
+                <p className="text-text-2 text-sm mb-3">No players on this trip yet</p>
+                <Link href={`/trip/${tripId}/players`}>
+                  <Button type="button" variant="secondary" size="default">
+                    Add Players First
+                  </Button>
+                </Link>
+              </div>
+            ) : !isMultiGroup ? (
+              /* ── Single group: toggle chip grid ── */
+              <div className="flex flex-wrap gap-2">
+                {players.map((player) => {
+                  const isSelected = selectedPlayerIds.has(player.id)
+                  return (
+                    <button
+                      key={player.id}
+                      type="button"
+                      onClick={() => togglePlayer(player.id)}
+                      className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition-all active:scale-95 ${
+                        isSelected
+                          ? 'bg-accent text-bg-0 shadow-sm shadow-accent/25'
+                          : 'bg-bg-2 text-text-1 border border-stroke hover:border-accent/40'
+                      }`}
+                    >
+                      <span>{player.name}</span>
+                      {player.handicap_index !== null && (
+                        <span className={`text-[11px] ${isSelected ? 'text-bg-0/60' : 'text-text-2/60'}`}>
+                          {player.handicap_index}
+                        </span>
+                      )}
+                      {isSelected && (
+                        <svg className="h-4 w-4 -mr-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              /* ── Multi-group: group cards with drag/assign ── */
+              <MultiGroupSection
+                groups={groups}
+                players={players}
+                selectedPlayerIds={selectedPlayerIds}
+                onAddPlayer={addPlayerToGroup}
+                onRemovePlayer={removePlayerFromGroup}
+                onAddGroup={addGroup}
+                onRemoveGroup={removeGroup}
+                onUpdateTeeTime={updateGroupTeeTime}
+              />
+            )}
+
+            {/* Multi-group toggle (only show if >4 players and single group) */}
+            {!isMultiGroup && players.length > 4 && (
+              <button
+                type="button"
+                onClick={addGroup}
+                className="mt-3 text-xs text-text-2 hover:text-accent transition-colors"
+              >
+                Need multiple groups? →
+              </button>
+            )}
+          </section>
+
+          {/* ═══════════════════════════════════════════════
+              SECTION 2: ROUND DETAILS
+              ═══════════════════════════════════════════════ */}
+          <section className="rounded-xl bg-bg-1 border border-stroke/40 p-4">
+            <h2 className="font-display text-sm font-bold uppercase tracking-wider text-text-2 mb-4">
+              Details
+            </h2>
             <div className="space-y-4">
+              {/* Name */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-text-1">
                   Round Name <span className="text-bad">*</span>
@@ -355,6 +423,7 @@ export default function NewRoundPage() {
                 />
               </div>
 
+              {/* Date + Tee Time side by side */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-text-1">
@@ -369,36 +438,51 @@ export default function NewRoundPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-text-1">
+                  <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-text-1">
+                    <ClockIcon />
                     Tee Time
+                    <span className="text-text-2/50 text-[11px] font-normal">optional</span>
                   </label>
-                  <input
-                    type="time"
-                    value={teeTime}
-                    onChange={(e) => setTeeTime(e.target.value)}
-                    className="w-full rounded-xl border border-stroke bg-bg-2 px-4 py-3 text-text-0 focus:border-accent focus:outline-none text-[16px]"
-                  />
+                  <div className="relative">
+                    <input
+                      type="time"
+                      value={teeTime}
+                      onChange={(e) => setTeeTime(e.target.value)}
+                      className={`w-full rounded-xl border bg-bg-2 px-4 py-3 focus:border-accent focus:outline-none text-[16px] transition-colors ${
+                        teeTime ? 'border-accent/40 text-text-0' : 'border-stroke text-text-2/60'
+                      }`}
+                    />
+                    {teeTime && (
+                      <button
+                        type="button"
+                        onClick={() => setTeeTime('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-2/50 hover:text-text-1"
+                      >
+                        <XCircleIcon />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Scoring basis as toggle pills */}
+              {/* Scoring toggle */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-text-1">
                   Scoring
                 </label>
                 <div className="flex gap-2">
-                  {[
-                    { value: 'net' as const, label: 'Net (Handicap)', desc: 'Recommended' },
+                  {([
+                    { value: 'net' as const, label: 'Net', desc: 'Handicap applied' },
                     { value: 'gross' as const, label: 'Gross', desc: 'Raw scores' },
-                  ].map((opt) => (
+                  ]).map((opt) => (
                     <button
                       key={opt.value}
                       type="button"
                       onClick={() => setScoringBasis(opt.value)}
-                      className={`flex-1 rounded-xl border p-3 text-left transition-all ${
+                      className={`flex-1 rounded-xl border p-3 text-left transition-all active:scale-[0.98] ${
                         scoringBasis === opt.value
                           ? 'border-accent bg-accent/10'
-                          : 'border-stroke bg-bg-2 active:bg-bg-0'
+                          : 'border-stroke bg-bg-2'
                       }`}
                     >
                       <span className={`text-sm font-medium ${scoringBasis === opt.value ? 'text-accent' : 'text-text-1'}`}>
@@ -410,10 +494,12 @@ export default function NewRoundPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* ── Section 2: Format Selection ── */}
-          <div className="rounded-xl bg-bg-1 border border-stroke/40 p-4">
+          {/* ═══════════════════════════════════════════════
+              SECTION 3: FORMAT
+              ═══════════════════════════════════════════════ */}
+          <section className="rounded-xl bg-bg-1 border border-stroke/40 p-4">
             <h2 className="font-display text-sm font-bold uppercase tracking-wider text-text-2 mb-4">
               Format
             </h2>
@@ -421,19 +507,20 @@ export default function NewRoundPage() {
               value={format}
               onChange={setFormat}
             />
-          </div>
+          </section>
 
-          {/* ── Section 3: Course ── */}
-          <div className="rounded-xl bg-bg-1 border border-stroke/40 p-4">
+          {/* ═══════════════════════════════════════════════
+              SECTION 4: COURSE
+              ═══════════════════════════════════════════════ */}
+          <section className="rounded-xl bg-bg-1 border border-stroke/40 p-4">
             <h2 className="font-display text-sm font-bold uppercase tracking-wider text-text-2 mb-4">
               Course
             </h2>
-
             {!manualCourseMode ? (
               <>
                 <CourseSelector
                   selectedTeeId={selectedTeeId}
-                  onTeeSelected={(teeId, courseName, teeName) => {
+                  onTeeSelected={(teeId, courseName) => {
                     setSelectedTeeId(teeId)
                     setSelectedCourseName(courseName)
                   }}
@@ -462,276 +549,31 @@ export default function NewRoundPage() {
                 </button>
               </div>
             )}
-          </div>
+          </section>
 
-          {/* ── Section 4: Players ── */}
-          <div className="rounded-xl bg-bg-1 border border-stroke/40 p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-sm font-bold uppercase tracking-wider text-text-2">
-                {groups.length === 1 ? 'Players' : 'Groups'}
-              </h2>
-              <div className="flex items-center gap-2">
-                {unassignedPlayers.length > 0 && groups[0] && assignedPlayerIds.size === 0 && (
-                  <button
-                    type="button"
-                    onClick={addAllPlayers}
-                    className="text-xs text-accent font-medium hover:underline"
-                  >
-                    Add All ({unassignedPlayers.length})
-                  </button>
-                )}
-                {(groups.length > 1 || players.length > 4) && (
-                  <button
-                    type="button"
-                    onClick={addGroup}
-                    className="flex items-center gap-1 rounded-lg bg-bg-2 px-2.5 py-1.5 text-xs font-medium text-text-1 active:bg-bg-0"
-                  >
-                    <PlusIcon /> Group
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {players.length === 0 ? (
-              <div className="text-center py-6">
-                <div className="text-3xl mb-2">🏌️</div>
-                <p className="text-text-2 text-sm mb-3">No players added yet</p>
-                <Link href={`/trip/${tripId}/players`}>
-                  <Button type="button" variant="secondary" size="default">
-                    Add Players First
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {groups.map((group, index) => (
-                  <div
-                    key={group.id}
-                    className={groups.length === 1 ? '' : 'rounded-xl border border-stroke/40 bg-bg-2 p-3'}
-                  >
-                    {/* Group header (only show for multiple groups) */}
-                    {groups.length > 1 && (
-                      <div className="mb-3 flex items-center justify-between">
-                        <span className="font-display text-sm font-bold text-text-0">
-                          Group {index + 1}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="time"
-                            value={group.teeTime}
-                            onChange={(e) => updateGroupTeeTime(group.id, e.target.value)}
-                            className="rounded-lg border border-stroke bg-bg-1 px-3 py-1.5 text-sm text-text-0 focus:border-accent focus:outline-none text-[16px]"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeGroup(group.id)}
-                            className="p-1.5 text-text-2 hover:text-bad transition-colors rounded-lg active:bg-bg-1"
-                          >
-                            <TrashIcon />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Players as tap-to-assign chips */}
-                    {group.playerIds.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {group.playerIds.map((playerId) => {
-                          const player = players.find((p) => p.id === playerId)
-                          if (!player) return null
-                          return (
-                            <div
-                              key={playerId}
-                              className="flex items-center gap-1.5 rounded-full bg-accent/10 border border-accent/20 pl-3 pr-1.5 py-1.5 animate-fadeIn"
-                            >
-                              <span className="text-sm font-medium text-text-0">{player.name}</span>
-                              {player.handicap_index !== null && (
-                                <span className="text-[11px] text-text-2">{player.handicap_index}</span>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => removePlayerFromGroup(group.id, playerId)}
-                                className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-bad/20 text-text-2 hover:text-bad transition-colors"
-                              >
-                                <XIcon />
-                              </button>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-
-                    {/* Unassigned players as tap targets */}
-                    {unassignedPlayers.length > 0 && (
-                      <div>
-                        {group.playerIds.length === 0 && groups.length === 1 && (
-                          <p className="text-xs text-text-2 mb-2">Tap to add players:</p>
-                        )}
-                        <div className="flex flex-wrap gap-2">
-                          {unassignedPlayers.map((player) => (
-                            <button
-                              key={player.id}
-                              type="button"
-                              onClick={() => addPlayerToGroup(group.id, player.id)}
-                              className="flex items-center gap-1.5 rounded-full border border-stroke bg-bg-2 px-3 py-1.5 text-sm text-text-1 transition-all active:scale-95 active:bg-accent/10 active:border-accent/30 hover:border-accent/40"
-                            >
-                              <span className="text-text-2">+</span>
-                              <span>{player.name}</span>
-                              {player.handicap_index !== null && (
-                                <span className="text-[11px] text-text-2/60">{player.handicap_index}</span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {group.playerIds.length === 0 && unassignedPlayers.length === 0 && (
-                      <p className="text-sm text-text-2">All players assigned</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Team Assignment (for Points Hi/Lo and Stableford) */}
-          {formatRequiresTeams(format) && assignedPlayerIds.size > 0 && (
+          {/* ═══════════════════════════════════════════════
+              CONDITIONAL: Team Assignment
+              ═══════════════════════════════════════════════ */}
+          {formatRequiresTeams(format) && selectedCount > 0 && (
             <div className="animate-fadeIn">
               <TeamAssignmentForm
-                players={players.filter((p) => assignedPlayerIds.has(p.id))}
+                players={players.filter((p) => selectedPlayerIds.has(p.id))}
                 assignments={teamAssignments}
                 onChange={setTeamAssignments}
               />
             </div>
           )}
 
-          {/* Nassau Upsell — show when Match Play is selected */}
-          {format === 'match_play' && (
-            <div className="animate-fadeIn rounded-xl border border-accent/40 bg-accent/5 p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/20">
-                    <span className="text-lg">⚡</span>
-                  </div>
-                  <div>
-                    <p className="font-display font-bold text-accent text-sm">UPGRADE TO NASSAU</p>
-                    <p className="text-xs text-text-2">3 matches in 1 — Front 9 + Back 9 + Overall</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFormat('nassau')}
-                  className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-bg-0 active:scale-95 transition-transform"
-                >
-                  Switch
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Nassau Settings — show when Nassau is selected */}
-          {format === 'nassau' && (
-            <Card className="p-4 animate-fadeIn">
-              <h3 className="font-display text-lg font-bold text-text-0 mb-4">Nassau Settings</h3>
-
-              {/* Stake */}
-              <div className="mb-4">
-                <label className="block text-sm text-text-2 mb-2">Stake per Man (per bet)</label>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setNassauStake(Math.max(1, nassauStake - 1))}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg bg-bg-2 text-text-1 active:bg-bg-0"
-                  >−</button>
-                  <div className="flex h-10 items-center justify-center rounded-lg bg-bg-2 px-4 min-w-[80px] text-center font-bold text-accent text-lg tabular-nums">
-                    ${nassauStake}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setNassauStake(nassauStake + 1)}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg bg-bg-2 text-text-1 active:bg-bg-0"
-                  >+</button>
-                </div>
-                <p className="text-xs text-text-2 mt-1">Total exposure: ${nassauStake * 3}/man (Front + Back + Overall)</p>
-              </div>
-
-              {/* High Ball Tiebreaker */}
-              <div className="flex items-center justify-between py-3 border-t border-stroke/40">
-                <div>
-                  <p className="font-medium text-text-0 text-sm">High Ball Tiebreaker</p>
-                  <p className="text-xs text-text-2">When low nets tie, best high net breaks it</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setNassauHighBallTiebreaker(!nassauHighBallTiebreaker)}
-                  className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors ${
-                    nassauHighBallTiebreaker ? 'bg-accent' : 'bg-bg-2 border border-stroke'
-                  }`}
-                  role="switch"
-                  aria-checked={nassauHighBallTiebreaker}
-                >
-                  <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg absolute top-1 transition-transform ${
-                    nassauHighBallTiebreaker ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
-                </button>
-              </div>
-
-              {/* Auto Press */}
-              <div className="flex items-center justify-between py-3 border-t border-stroke/40">
-                <div>
-                  <p className="font-medium text-text-0 text-sm">Auto-Press When Down 2</p>
-                  <p className="text-xs text-text-2">Automatically press when trailing by 2 in any sub-match</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setNassauAutoPress(!nassauAutoPress)}
-                  className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors ${
-                    nassauAutoPress ? 'bg-accent' : 'bg-bg-2 border border-stroke'
-                  }`}
-                  role="switch"
-                  aria-checked={nassauAutoPress}
-                >
-                  <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg absolute top-1 transition-transform ${
-                    nassauAutoPress ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
-                </button>
-              </div>
-            </Card>
-          )}
-
-          {/* Press Settings — show for match-based formats */}
-          {(format === 'match_play' || format === 'nassau') && (
-            <div className="animate-fadeIn rounded-xl border border-stroke/40 bg-bg-1 p-4">
-              <div className="flex items-center gap-3 mb-1">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10">
-                  <span className="font-display text-xs font-extrabold tracking-widest text-accent">P</span>
-                </div>
-                <div className="flex-1">
-                  <p className="font-display font-bold text-text-0">Press</p>
-                  <p className="text-xs text-text-2">When you&apos;re down, press to double the action</p>
-                </div>
-                <div className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-bold text-accent tracking-wide">
-                  ALWAYS ON
-                </div>
-              </div>
-              <p className="text-xs text-text-2 mt-2 ml-[52px]">
-                Press Front 9, Back 9, or the full match at any point during play. It&apos;s what we&apos;re named after.
-              </p>
-            </div>
-          )}
-
-          {/* Money Game (Match Setup) - Only for Match Play */}
-          {format === 'match_play' && assignedPlayerIds.size >= 2 && (
+          {/* ═══════════════════════════════════════════════
+              CONDITIONAL: Match Play extras
+              ═══════════════════════════════════════════════ */}
+          {format === 'match_play' && selectedCount >= 2 && (
             <div className="animate-fadeIn">
-              {/* Auto-expand match setup for match play to make it prominent */}
               {!matchConfig ? (
                 <div className="rounded-xl border border-gold/30 bg-gold/5 p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/20 text-gold">
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                      <MoneyIcon />
                     </div>
                     <div>
                       <p className="font-medium text-text-0">Money Game</p>
@@ -740,7 +582,7 @@ export default function NewRoundPage() {
                   </div>
                   {showMatchSetup ? (
                     <MatchSetupForm
-                      players={players.filter((p) => assignedPlayerIds.has(p.id))}
+                      players={players.filter((p) => selectedPlayerIds.has(p.id))}
                       onMatchConfigured={(config) => {
                         setMatchConfig(config)
                         setMatchEnabled(true)
@@ -764,33 +606,32 @@ export default function NewRoundPage() {
                   enabled={matchEnabled}
                   onToggle={(enabled) => {
                     setMatchEnabled(enabled)
-                    if (!enabled) {
-                      setMatchConfig(null)
-                    }
+                    if (!enabled) setMatchConfig(null)
                   }}
                   matchConfig={matchConfig}
                   onConfigure={() => setShowMatchSetup(true)}
-                  players={players.filter((p) => assignedPlayerIds.has(p.id))}
+                  players={players.filter((p) => selectedPlayerIds.has(p.id))}
                 />
               )}
             </div>
           )}
 
-          {/* Junk/Side Bets */}
-          {assignedPlayerIds.size >= 2 && (
+          {/* ═══════════════════════════════════════════════
+              CONDITIONAL: Side Bets
+              ═══════════════════════════════════════════════ */}
+          {selectedCount >= 2 && (
             <div className="animate-fadeIn">
-              <JunkConfigForm
-                config={junkConfig}
-                onChange={setJunkConfig}
-              />
+              <JunkConfigForm config={junkConfig} onChange={setJunkConfig} />
             </div>
           )}
 
-          {/* Start immediately toggle */}
+          {/* ═══════════════════════════════════════════════
+              START IMMEDIATELY + ERROR
+              ═══════════════════════════════════════════════ */}
           <button
             type="button"
             onClick={() => setStartImmediately(!startImmediately)}
-            className={`w-full rounded-xl border p-4 text-left transition-all ${
+            className={`w-full rounded-xl border p-4 text-left transition-all active:scale-[0.99] ${
               startImmediately
                 ? 'border-good/40 bg-good/5'
                 : 'border-stroke/40 bg-bg-1'
@@ -816,36 +657,146 @@ export default function NewRoundPage() {
           {error && (
             <div className="rounded-xl bg-bad/10 border border-bad/20 px-4 py-3 text-sm text-bad animate-fadeIn">
               {error}
-              <button onClick={() => setError(null)} className="ml-2 underline text-bad/70">dismiss</button>
+              <button type="button" onClick={() => setError(null)} className="ml-2 underline text-bad/70">dismiss</button>
             </div>
           )}
-
-          {/* Submit area — sticky bottom */}
-          <div className="sticky bottom-0 bg-gradient-to-t from-bg-0 via-bg-0 to-transparent pt-4 pb-2 -mx-4 px-4">
-            <div className="flex gap-3">
-              <Link href={`/trip/${tripId}`} className="flex-shrink-0">
-                <Button type="button" variant="secondary" className="px-6">
-                  Cancel
-                </Button>
-              </Link>
-              <Button
-                type="submit"
-                loading={submitting}
-                disabled={submitting || !name.trim() || players.length === 0 || (!selectedTeeId && !manualCourseMode)}
-                className="flex-1"
-                size="large"
-              >
-                {startImmediately ? 'Create & Start Scoring →' : 'Create Round'}
-              </Button>
-            </div>
-          </div>
         </form>
+
+        {/* ═══════════════════════════════════════════════
+            STICKY BOTTOM CTA
+            ═══════════════════════════════════════════════ */}
+        <div className="fixed bottom-0 inset-x-0 bg-gradient-to-t from-bg-0 via-bg-0/95 to-transparent pt-6 pb-safe px-4 z-10">
+          <LayoutContainer>
+            <div className="flex gap-3 mb-2">
+              <Link href={`/trip/${tripId}`} className="shrink-0">
+                <button
+                  type="button"
+                  className="h-[52px] rounded-xl border border-stroke bg-bg-1 px-5 font-medium text-text-1 active:scale-[0.98] transition-transform"
+                >
+                  Cancel
+                </button>
+              </Link>
+              <button
+                type="submit"
+                form="round-form"
+                onClick={handleSubmit}
+                disabled={submitting || !name.trim() || selectedCount === 0 || (!selectedTeeId && !manualCourseMode)}
+                className="flex-1 flex items-center justify-center gap-2 h-[52px] rounded-xl bg-accent font-display font-bold text-bg-0 active:scale-[0.98] transition-all disabled:opacity-40 disabled:active:scale-100"
+              >
+                {submitting ? (
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-bg-0 border-t-transparent" />
+                ) : (
+                  <>
+                    {startImmediately ? 'Create & Score' : 'Create Round'}
+                    <ArrowRightIcon />
+                  </>
+                )}
+              </button>
+            </div>
+          </LayoutContainer>
+        </div>
       </LayoutContainer>
     </div>
   )
 }
 
-function BackIcon() {
+// ─── Multi-Group Section ───────────────────────────────
+
+function MultiGroupSection({
+  groups,
+  players,
+  selectedPlayerIds,
+  onAddPlayer,
+  onRemovePlayer,
+  onAddGroup,
+  onRemoveGroup,
+  onUpdateTeeTime,
+}: {
+  groups: GroupConfig[]
+  players: DbPlayer[]
+  selectedPlayerIds: Set<string>
+  onAddPlayer: (groupId: string, playerId: string) => void
+  onRemovePlayer: (groupId: string, playerId: string) => void
+  onAddGroup: () => void
+  onRemoveGroup: (groupId: string) => void
+  onUpdateTeeTime: (groupId: string, time: string) => void
+}) {
+  const unassigned = players.filter((p) => !selectedPlayerIds.has(p.id))
+
+  return (
+    <div className="space-y-3">
+      {groups.map((group, index) => (
+        <div key={group.id} className="rounded-xl border border-stroke/40 bg-bg-2/50 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-display text-sm font-bold text-text-0">
+              Group {index + 1}
+            </span>
+            <div className="flex items-center gap-2">
+              <input
+                type="time"
+                value={group.teeTime}
+                onChange={(e) => onUpdateTeeTime(group.id, e.target.value)}
+                className="rounded-lg border border-stroke bg-bg-1 px-2.5 py-1.5 text-sm text-text-0 focus:border-accent focus:outline-none text-[16px]"
+              />
+              {groups.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => onRemoveGroup(group.id)}
+                  className="p-1.5 text-text-2 hover:text-bad transition-colors rounded-lg"
+                >
+                  <TrashIcon />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {group.playerIds.map((pid) => {
+              const p = players.find((pl) => pl.id === pid)
+              if (!p) return null
+              return (
+                <div key={pid} className="flex items-center gap-1.5 rounded-full bg-accent/10 border border-accent/20 pl-3 pr-1.5 py-1.5">
+                  <span className="text-sm font-medium text-text-0">{p.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => onRemovePlayer(group.id, pid)}
+                    className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-bad/20 text-text-2 hover:text-bad transition-colors"
+                  >
+                    <XSmallIcon />
+                  </button>
+                </div>
+              )
+            })}
+            {unassigned.length > 0 && (
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) onAddPlayer(group.id, e.target.value)
+                }}
+                className="rounded-full border border-dashed border-stroke bg-bg-2 px-3 py-1.5 text-sm text-text-2 focus:border-accent focus:outline-none text-[16px]"
+              >
+                <option value="">+ Add</option>
+                {unassigned.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={onAddGroup}
+        className="flex w-full items-center justify-center gap-1 rounded-xl border border-dashed border-stroke py-2.5 text-sm text-text-2 hover:border-accent/40 hover:text-accent transition-colors"
+      >
+        <PlusSmallIcon /> Add Group
+      </button>
+    </div>
+  )
+}
+
+// ─── Icons ─────────────────────────────────────────────
+
+function ChevronLeftIcon() {
   return (
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -853,7 +804,39 @@ function BackIcon() {
   )
 }
 
-function PlusIcon() {
+function ArrowRightIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+    </svg>
+  )
+}
+
+function ClockIcon() {
+  return (
+    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function XCircleIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function MoneyIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function PlusSmallIcon() {
   return (
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -869,7 +852,7 @@ function TrashIcon() {
   )
 }
 
-function XIcon() {
+function XSmallIcon() {
   return (
     <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
