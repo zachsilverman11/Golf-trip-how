@@ -107,7 +107,7 @@ export interface DbPlayer {
   updated_at: string
 }
 
-export type RoundFormat = 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford' | 'nassau' | 'skins' | 'wolf'
+export type RoundFormat = 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford' | 'nassau' | 'skins' | 'wolf' | 'scramble'
 
 export interface DbRound {
   id: string

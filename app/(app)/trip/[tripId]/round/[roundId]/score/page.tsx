@@ -7,6 +7,7 @@ import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { LiveIndicator } from '@/components/ui/LiveIndicator'
 import { Button } from '@/components/ui/Button'
 import { GroupScorer } from '@/components/scoring/GroupScorer'
+import { ScrambleScorer } from '@/components/scoring/ScrambleScorer'
 import { MatchStrip } from '@/components/match'
 import { FormatStrip } from '@/components/scoring/FormatStrip'
 import { getRoundAction, updateRoundAction } from '@/lib/supabase/round-actions'
@@ -204,7 +205,7 @@ export default function ScorePage() {
       }
 
       // Check if this round counts toward team competition
-      if (format === 'match_play' || format === 'points_hilo' || format === 'nassau') {
+      if (format === 'match_play' || format === 'points_hilo' || format === 'nassau' || format === 'scramble') {
         const tripResult = await getTripAction(tripId)
         if (tripResult.trip?.war_enabled) {
           setCompetitionName((tripResult.trip as any).competition_name || 'The Cup')
@@ -579,7 +580,15 @@ export default function ScorePage() {
       )}
 
       {/* Scorer */}
-      {players.length > 0 ? (
+      {round?.format === 'scramble' ? (
+        <ScrambleScorerWrapper
+          round={round}
+          holes={holes}
+          scores={scores}
+          onScoreChange={handleScoreChange}
+          onComplete={handleComplete}
+        />
+      ) : players.length > 0 ? (
         <GroupScorer
           roundId={roundId}
           players={players}
@@ -659,5 +668,74 @@ function BackIcon() {
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
     </svg>
+  )
+}
+
+/**
+ * Wrapper that extracts team info from round groups for the ScrambleScorer.
+ *
+ * In scramble, team_number on group_players determines which team a player is on.
+ * Team 1 = Team A, Team 2 = Team B. The first player on each team is the "captain"
+ * whose player ID is used to store the team's score in the scores table.
+ */
+function ScrambleScorerWrapper({
+  round,
+  holes,
+  scores,
+  onScoreChange,
+  onComplete,
+}: {
+  round: DbRoundWithGroups
+  holes: { number: number; par: number; strokeIndex: number; yards: number | null }[]
+  scores: { [playerId: string]: { [hole: number]: number | null } }
+  onScoreChange: (playerId: string, hole: number, score: number | null) => void
+  onComplete: () => void
+}) {
+  // Extract players with team assignments from all groups
+  const allGroupPlayers = round.groups?.flatMap((g) =>
+    g.group_players?.map((gp) => ({
+      id: (gp as any).players?.id as string,
+      name: (gp as any).players?.name as string,
+      teamNumber: gp.team_number as 1 | 2 | null,
+    })).filter((p) => p.id) || []
+  ) || []
+
+  const team1Players = allGroupPlayers.filter((p) => p.teamNumber === 1)
+  const team2Players = allGroupPlayers.filter((p) => p.teamNumber === 2)
+
+  // Need at least 1 player per team
+  if (team1Players.length === 0 || team2Players.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-text-2 mb-2">Teams not set up for scramble</p>
+        <p className="text-xs text-text-2 mb-4">
+          Each team needs at least 1 player with a team assignment.
+        </p>
+      </div>
+    )
+  }
+
+  const teamA = {
+    name: 'Team 1',
+    captainId: team1Players[0].id,
+    players: team1Players.map((p) => ({ id: p.id, name: p.name })),
+  }
+
+  const teamB = {
+    name: 'Team 2',
+    captainId: team2Players[0].id,
+    players: team2Players.map((p) => ({ id: p.id, name: p.name })),
+  }
+
+  return (
+    <ScrambleScorer
+      roundId={round.id}
+      teamA={teamA}
+      teamB={teamB}
+      holes={holes}
+      scores={scores}
+      onScoreChange={onScoreChange}
+      onComplete={onComplete}
+    />
   )
 }

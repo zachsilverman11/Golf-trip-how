@@ -20,6 +20,7 @@ function shouldShowTeams(format: RoundFormat, playerCount: number): boolean {
   if (format === 'points_hilo') return playerCount === 4
   if (format === 'nassau') return playerCount === 4
   if (format === 'match_play') return playerCount === 4
+  if (format === 'scramble') return playerCount >= 2
   return false
 }
 
@@ -27,6 +28,7 @@ function teamsRequired(format: RoundFormat, playerCount: number): boolean {
   if (format === 'points_hilo') return true
   if (format === 'nassau') return true
   if (format === 'match_play' && playerCount === 4) return true
+  if (format === 'scramble') return true
   return false
 }
 
@@ -54,6 +56,11 @@ function getPlayerCountError(format: RoundFormat, playerCount: number): string |
   if (format === 'wolf') {
     if (playerCount !== 4 && playerCount > 0) {
       return 'Wolf requires exactly 4 players'
+    }
+  }
+  if (format === 'scramble') {
+    if (playerCount < 2 && playerCount > 0) {
+      return 'Scramble requires at least 2 players (1 per team)'
     }
   }
   return null

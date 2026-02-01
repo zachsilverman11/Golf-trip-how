@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import { cn } from '@/lib/utils'
 import { LayoutContainer } from '@/components/ui/LayoutContainer'
 import { Card } from '@/components/ui/Card'
 import { Tabs } from '@/components/ui/Tabs'
@@ -15,8 +16,10 @@ import type { LeaderboardEntry, TripLeaderboard } from '@/lib/supabase/leaderboa
 import type { DbRoundWithTee } from '@/lib/supabase/types'
 import type { TripFormatStandings } from '@/lib/format-types'
 import { ShareButton } from '@/components/ui/ShareButton'
+import { getScrambleRoundResultsAction } from '@/lib/supabase/scramble-actions'
+import type { ScrambleRoundResult } from '@/lib/supabase/scramble-actions'
 
-type ScoringMode = 'net' | 'gross' | 'format'
+type ScoringMode = 'net' | 'gross' | 'format' | 'scramble'
 
 export default function LeaderboardPage() {
   const params = useParams()
@@ -28,6 +31,7 @@ export default function LeaderboardPage() {
     holesTotal: 18,
   })
   const [formatStandings, setFormatStandings] = useState<TripFormatStandings | null>(null)
+  const [scrambleResults, setScrambleResults] = useState<ScrambleRoundResult[]>([])
   const [rounds, setRounds] = useState<DbRoundWithTee[]>([])
   const [selectedRoundId, setSelectedRoundId] = useState<string | undefined>()
   const [scoringMode, setScoringMode] = useState<ScoringMode>('net')
@@ -35,10 +39,11 @@ export default function LeaderboardPage() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
 
   const loadData = async () => {
-    const [leaderboardResult, roundsResult, formatResult] = await Promise.all([
+    const [leaderboardResult, roundsResult, formatResult, scrambleResult] = await Promise.all([
       getTripLeaderboardAction(tripId, selectedRoundId),
       getRoundsAction(tripId),
       getTripFormatStandingsAction(tripId),
+      getScrambleRoundResultsAction(tripId),
     ])
 
     if (leaderboardResult.leaderboard) {
@@ -49,6 +54,9 @@ export default function LeaderboardPage() {
     }
     if (formatResult.standings) {
       setFormatStandings(formatResult.standings)
+    }
+    if (scrambleResult.results) {
+      setScrambleResults(scrambleResult.results)
     }
     setLastUpdate(new Date())
     setLoading(false)
@@ -68,11 +76,13 @@ export default function LeaderboardPage() {
   // Check if there are format rounds
   const hasFormatRounds = formatStandings &&
     (formatStandings.pointsHiLoRoundCount > 0 || formatStandings.stablefordRoundCount > 0)
+  const hasScrambleRounds = scrambleResults.length > 0
 
   const scoringTabs = [
     { id: 'net', label: 'Net' },
     { id: 'gross', label: 'Gross' },
     ...(hasFormatRounds ? [{ id: 'format', label: 'Format' }] : []),
+    ...(hasScrambleRounds ? [{ id: 'scramble', label: 'Scramble' }] : []),
   ]
 
   // Sort entries based on scoring mode
@@ -164,7 +174,9 @@ export default function LeaderboardPage() {
       </div>
 
       {/* Leaderboard content based on mode */}
-      {scoringMode === 'format' ? (
+      {scoringMode === 'scramble' ? (
+        <ScrambleResultsView results={scrambleResults} />
+      ) : scoringMode === 'format' ? (
         <FormatStandingsView standings={formatStandings} />
       ) : entriesWithPosition.length === 0 ? (
         <Card className="p-8 text-center">
@@ -311,6 +323,128 @@ function FormatStandingsView({ standings }: { standings: TripFormatStandings | n
       <p className="text-center text-xs text-text-2">
         Player totals across all rounds (teams rotate each round)
       </p>
+    </div>
+  )
+}
+
+/**
+ * Scramble results view — shows team scores for scramble rounds
+ */
+function ScrambleResultsView({ results }: { results: ScrambleRoundResult[] }) {
+  if (results.length === 0) {
+    return (
+      <Card className="p-8 text-center">
+        <p className="text-text-2">No scramble rounds played</p>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {results.map((result) => {
+        const formatToPar = (toPar: number) =>
+          toPar === 0 ? 'E' : toPar > 0 ? `+${toPar}` : `${toPar}`
+
+        return (
+          <Card key={result.roundId} className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-display font-bold text-text-0">
+                {result.roundName}
+              </h3>
+              <Badge variant={result.status === 'completed' ? 'default' : 'live'}>
+                {result.status === 'completed' ? 'Final' : 'Live'}
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {/* Team 1 */}
+              <div
+                className={cn(
+                  'rounded-card-sm border p-3 text-center',
+                  result.winner === 'team1'
+                    ? 'border-good/50 bg-good/5'
+                    : 'border-stroke bg-bg-2'
+                )}
+              >
+                <div className="font-display text-sm font-bold text-text-0 mb-1">
+                  Team 1
+                </div>
+                <div className="text-[11px] text-text-2 mb-2 truncate">
+                  {result.team1Players.join(', ')}
+                </div>
+                <div className="font-display text-2xl font-bold text-text-0">
+                  {result.team1Total}
+                </div>
+                {result.team1ToPar !== undefined && (
+                  <div
+                    className={cn(
+                      'text-xs font-display font-bold mt-1',
+                      result.team1ToPar < 0
+                        ? 'text-good'
+                        : result.team1ToPar > 0
+                          ? 'text-bad'
+                          : 'text-text-2'
+                    )}
+                  >
+                    {formatToPar(result.team1ToPar)}
+                  </div>
+                )}
+                {result.winner === 'team1' && (
+                  <div className="mt-1 text-xs text-good font-medium">Winner</div>
+                )}
+              </div>
+
+              {/* Team 2 */}
+              <div
+                className={cn(
+                  'rounded-card-sm border p-3 text-center',
+                  result.winner === 'team2'
+                    ? 'border-good/50 bg-good/5'
+                    : 'border-stroke bg-bg-2'
+                )}
+              >
+                <div className="font-display text-sm font-bold text-text-0 mb-1">
+                  Team 2
+                </div>
+                <div className="text-[11px] text-text-2 mb-2 truncate">
+                  {result.team2Players.join(', ')}
+                </div>
+                <div className="font-display text-2xl font-bold text-text-0">
+                  {result.team2Total}
+                </div>
+                {result.team2ToPar !== undefined && (
+                  <div
+                    className={cn(
+                      'text-xs font-display font-bold mt-1',
+                      result.team2ToPar < 0
+                        ? 'text-good'
+                        : result.team2ToPar > 0
+                          ? 'text-bad'
+                          : 'text-text-2'
+                    )}
+                  >
+                    {formatToPar(result.team2ToPar)}
+                  </div>
+                )}
+                {result.winner === 'team2' && (
+                  <div className="mt-1 text-xs text-good font-medium">Winner</div>
+                )}
+              </div>
+            </div>
+
+            {result.winner === 'tied' && (
+              <div className="mt-2 text-center text-sm text-gold font-medium">
+                Tied
+              </div>
+            )}
+            {result.margin > 0 && result.winner !== 'tied' && (
+              <div className="mt-2 text-center text-xs text-text-2">
+                Won by {result.margin} stroke{result.margin !== 1 ? 's' : ''}
+              </div>
+            )}
+          </Card>
+        )
+      })}
     </div>
   )
 }

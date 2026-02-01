@@ -159,14 +159,29 @@ export default function NewRoundPage() {
     const requiresTeams = formatRequiresTeams(format)
 
     if (requiresTeams) {
-      if (allPlayerIds.length !== 4) {
+      if ((format === 'points_hilo' || format === 'nassau') && allPlayerIds.length !== 4) {
         setError(`${format === 'nassau' ? 'Nassau' : 'Points Hi/Lo'} format requires exactly 4 players`)
         isSubmittingRef.current = false
         return
       }
 
+      if (format === 'scramble' && allPlayerIds.length < 2) {
+        setError('Scramble format requires at least 2 players')
+        isSubmittingRef.current = false
+        return
+      }
+
       const assignedPlayers = players.filter((p) => allPlayerIds.includes(p.id))
-      if (!isTeamAssignmentValid(assignedPlayers, teamAssignments)) {
+      // For scramble, just check that every player has a team and both teams have at least 1
+      if (format === 'scramble') {
+        const team1 = assignedPlayers.filter((p) => teamAssignments[p.id] === 1)
+        const team2 = assignedPlayers.filter((p) => teamAssignments[p.id] === 2)
+        if (team1.length < 1 || team2.length < 1) {
+          setError('Each team must have at least 1 player')
+          isSubmittingRef.current = false
+          return
+        }
+      } else if (!isTeamAssignmentValid(assignedPlayers, teamAssignments)) {
         setError('Each team must have exactly 2 players')
         isSubmittingRef.current = false
         return

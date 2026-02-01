@@ -51,6 +51,11 @@ const formatOptions: FormatOption[] = [
     label: 'Stableford',
     description: 'Team points: par=1, birdie=3, eagle=5',
   },
+  {
+    value: 'scramble',
+    label: 'Scramble',
+    description: 'Teams pick best shot each time. One score per team.',
+  },
 ]
 
 interface RoundFormatSelectorProps {
@@ -132,10 +137,10 @@ export function RoundFormatSelector({
 
 /**
  * Check if format requires team assignments
- * Points Hi/Lo and Nassau require 2v2 teams.
+ * Points Hi/Lo, Nassau, and Scramble require teams.
  */
 export function formatRequiresTeams(format: RoundFormat): boolean {
-  return format === 'points_hilo' || format === 'nassau'
+  return format === 'points_hilo' || format === 'nassau' || format === 'scramble'
 }
 
 /**
@@ -155,6 +160,7 @@ export function getMinPlayers(format: RoundFormat): number {
     case 'points_hilo': return 4
     case 'match_play': return 2
     case 'skins': return 2
+    case 'scramble': return 2
     default: return 1
   }
 }

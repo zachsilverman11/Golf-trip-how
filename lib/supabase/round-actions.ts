@@ -634,15 +634,23 @@ export async function createRoundWithGroupsAction(
   }
 
   // Validate team assignments for format rounds
-  const needsTeams = input.format === 'points_hilo' || input.format === 'nassau'
+  const needsTeams = input.format === 'points_hilo' || input.format === 'nassau' || input.format === 'scramble'
   if (needsTeams) {
     const allPlayerIds = input.groups.flatMap(g => g.player_ids)
 
-    // Must have exactly 4 players for team formats
-    if (allPlayerIds.length !== 4) {
+    // Points Hi/Lo and Nassau require exactly 4 players
+    if ((input.format === 'points_hilo' || input.format === 'nassau') && allPlayerIds.length !== 4) {
       return {
         success: false,
         error: `${input.format === 'nassau' ? 'Nassau' : 'Points Hi/Lo'} format requires exactly 4 players`
+      }
+    }
+
+    // Scramble requires at least 2 players (1 per team minimum)
+    if (input.format === 'scramble' && allPlayerIds.length < 2) {
+      return {
+        success: false,
+        error: 'Scramble format requires at least 2 players'
       }
     }
 
@@ -654,14 +662,21 @@ export async function createRoundWithGroupsAction(
       }
     }
 
-    // Validate 2 players per team
+    // Validate team counts
     const team1Count = allPlayerIds.filter(id => input.team_assignments![id] === 1).length
     const team2Count = allPlayerIds.filter(id => input.team_assignments![id] === 2).length
 
-    if (team1Count !== 2 || team2Count !== 2) {
+    if (input.format === 'points_hilo' && (team1Count !== 2 || team2Count !== 2)) {
       return {
         success: false,
         error: 'Each team must have exactly 2 players'
+      }
+    }
+
+    if (input.format === 'scramble' && (team1Count < 1 || team2Count < 1)) {
+      return {
+        success: false,
+        error: 'Each team must have at least 1 player'
       }
     }
   }

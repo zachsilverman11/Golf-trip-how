@@ -52,6 +52,7 @@ const formatLabels: Record<string, string> = {
   match_play: 'Match Play',
   points_hilo: 'Points (Hi/Lo)',
   stableford: 'Stableford',
+  scramble: 'Scramble',
 }
 
 function formatTeeTime(teeTimeStr: string | null): string | null {
