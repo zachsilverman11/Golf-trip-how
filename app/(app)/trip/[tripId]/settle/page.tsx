@@ -114,7 +114,7 @@ export default function SettlePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-bg-0">
+      <div className="min-h-[100dvh] bg-bg-0">
         <LayoutContainer className="py-6">
           <div className="mb-6">
             <div className="h-4 w-20 rounded bg-bg-2 animate-pulse mb-2" />
@@ -141,7 +141,7 @@ export default function SettlePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-bg-0">
+      <div className="min-h-[100dvh] bg-bg-0">
         <LayoutContainer className="py-6">
           <div className="mb-6">
             <Link
@@ -171,7 +171,7 @@ export default function SettlePage() {
     (formatStandings.pointsHiLoRoundCount > 0 || formatStandings.stablefordRoundCount > 0)
 
   return (
-    <div className="min-h-screen bg-bg-0">
+    <div className="min-h-[100dvh] bg-bg-0">
       <LayoutContainer className="py-6 pb-safe">
         {/* Header */}
         <div className="mb-6 flex items-start justify-between">

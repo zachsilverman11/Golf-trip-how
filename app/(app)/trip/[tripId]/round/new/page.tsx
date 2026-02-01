@@ -265,7 +265,7 @@ export default function NewRoundPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-bg-0">
+      <div className="min-h-[100dvh] bg-bg-0">
         <LayoutContainer className="py-6">
           <div className="animate-pulse space-y-4">
             <div className="h-4 w-20 rounded bg-bg-2" />
@@ -287,7 +287,7 @@ export default function NewRoundPage() {
   const isMultiGroup = groups.length > 1
 
   return (
-    <div className="min-h-screen bg-bg-0">
+    <div className="min-h-[100dvh] bg-bg-0">
       <LayoutContainer className="py-6 pb-32">
         {/* Header */}
         <div className="mb-6">

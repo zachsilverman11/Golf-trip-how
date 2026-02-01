@@ -9,7 +9,7 @@ export default async function AppLayout({
   await requireAuth()
 
   return (
-    <div className="flex min-h-screen flex-col bg-bg-0">
+    <div className="flex min-h-[100dvh] flex-col bg-bg-0">
       <div className="flex-1">
         {children}
       </div>

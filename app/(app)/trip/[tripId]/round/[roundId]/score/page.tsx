@@ -397,7 +397,7 @@ export default function ScorePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-bg-0">
+      <div className="min-h-[100dvh] bg-bg-0">
         <LayoutContainer className="py-4">
           {/* Skeleton header */}
           <div className="mb-4 animate-pulse">
@@ -444,7 +444,7 @@ export default function ScorePage() {
 
   if (error || !round) {
     return (
-      <div className="min-h-screen bg-bg-0">
+      <div className="min-h-[100dvh] bg-bg-0">
         <LayoutContainer className="py-6">
           <div className="text-center py-12">
             <div className="text-4xl mb-4">😔</div>
@@ -462,7 +462,7 @@ export default function ScorePage() {
   const course = (round.tees as any)?.courses
 
   return (
-    <div className="min-h-screen bg-bg-0">
+    <div className="min-h-[100dvh] bg-bg-0">
       <LayoutContainer className="py-3 pb-safe">
         {/* Compact header */}
         <div className="mb-3 flex items-center justify-between">

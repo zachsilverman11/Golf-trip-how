@@ -68,7 +68,7 @@ export default async function TripPage({ params }: TripPageProps) {
   const inProgressRound = trip.recentRounds?.find((r) => r.status === 'in_progress')
 
   return (
-    <div className="min-h-screen bg-bg-0">
+    <div className="min-h-[100dvh] bg-bg-0">
       <LayoutContainer className="py-6 pb-safe">
         {/* Back link */}
         <Link

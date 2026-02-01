@@ -132,7 +132,7 @@ export default function PlayersPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-bg-0">
+    <div className="flex min-h-[100dvh] flex-col bg-bg-0">
       <LayoutContainer className="flex-1 py-6 pb-28">
         {/* Header */}
         <div className="mb-6">

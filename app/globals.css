@@ -6,10 +6,14 @@
   html {
     @apply bg-bg-0 text-text-0 font-body;
     font-feature-settings: "tnum";
+    /* Prevent overscroll bounce / empty space below content on iOS */
+    overscroll-behavior-y: none;
   }
 
   body {
     @apply antialiased;
+    /* Use dvh (dynamic viewport height) on supported browsers for accurate mobile viewport */
+    min-height: 100dvh;
   }
 
   /* Prevent iOS zoom on form inputs by ensuring 16px minimum font size */
