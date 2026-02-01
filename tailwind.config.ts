@@ -53,6 +53,23 @@ const config: Config = {
       maxWidth: {
         'content': '1100px',
       },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0', transform: 'translateY(-4px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        slideIn: {
+          '0%': { opacity: '0', transform: 'translateY(-8px) scale(0.98)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
+      },
+      animation: {
+        fadeIn: 'fadeIn 200ms ease-out',
+        slideIn: 'slideIn 300ms ease-out',
+      },
+      padding: {
+        safe: 'env(safe-area-inset-bottom, 16px)',
+      },
     },
   },
   plugins: [],
