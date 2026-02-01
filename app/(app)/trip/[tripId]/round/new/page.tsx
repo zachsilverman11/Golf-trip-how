@@ -491,54 +491,49 @@ export default function NewRoundPage() {
                     </label>
                   )}
 
-                  {/* Players in group */}
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    {group.playerIds.map((playerId) => {
-                      const player = players.find((p) => p.id === playerId)
-                      if (!player) return null
+                  {/* Player chips — tap to toggle */}
+                  <div className="flex flex-wrap gap-2">
+                    {players.map((player) => {
+                      const isInThisGroup = group.playerIds.includes(player.id)
+                      const isInOtherGroup = !isInThisGroup && assignedPlayerIds.has(player.id)
+
                       return (
-                        <Badge
-                          key={playerId}
-                          variant="default"
-                          className="pr-1"
+                        <button
+                          key={player.id}
+                          type="button"
+                          disabled={isInOtherGroup}
+                          onClick={() => {
+                            if (isInThisGroup) {
+                              removePlayerFromGroup(group.id, player.id)
+                            } else {
+                              addPlayerToGroup(group.id, player.id)
+                            }
+                          }}
+                          className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium transition-all active:scale-95
+                            ${isInThisGroup
+                              ? 'bg-accent text-bg-0 shadow-sm'
+                              : isInOtherGroup
+                              ? 'bg-bg-2/50 text-text-2/40 cursor-not-allowed'
+                              : 'bg-bg-2 text-text-1 border border-stroke hover:border-accent/50'
+                            }`}
                         >
+                          {isInThisGroup && (
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
+                          )}
                           {player.name}
-                          <button
-                            type="button"
-                            onClick={() => removePlayerFromGroup(group.id, playerId)}
-                            className="ml-1 p-0.5 hover:text-bad"
-                          >
-                            <XIcon />
-                          </button>
-                        </Badge>
+                          {player.handicap_index !== null && (
+                            <span className={`text-xs ${isInThisGroup ? 'text-bg-0/70' : 'text-text-2'}`}>
+                              {player.handicap_index > 0 ? player.handicap_index.toFixed(1) : player.handicap_index < 0 ? `+${Math.abs(player.handicap_index).toFixed(1)}` : '0'}
+                            </span>
+                          )}
+                        </button>
                       )
                     })}
-                    {group.playerIds.length === 0 && (
-                      <span className="text-sm text-text-2">
-                        No players assigned
-                      </span>
-                    )}
                   </div>
-
-                  {/* Add player dropdown */}
-                  {unassignedPlayers.length > 0 && (
-                    <select
-                      value=""
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          addPlayerToGroup(group.id, e.target.value)
-                        }
-                      }}
-                      className="w-full rounded-button border border-stroke bg-bg-2 px-3 py-2 text-sm text-text-0 focus:border-accent focus:outline-none"
-                    >
-                      <option value="">Add player...</option>
-                      {unassignedPlayers.map((player) => (
-                        <option key={player.id} value={player.id}>
-                          {player.name}
-                          {player.handicap_index !== null && ` (${player.handicap_index})`}
-                        </option>
-                      ))}
-                    </select>
+                  {group.playerIds.length === 0 && (
+                    <p className="mt-2 text-xs text-text-2">Tap players to add them to this round</p>
                   )}
                 </div>
               ))}
