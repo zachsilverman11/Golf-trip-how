@@ -64,188 +64,218 @@ export default async function TripPage({ params }: TripPageProps) {
   const showHeroCard = trip.war_enabled && hasTeamAssignments && warTotals &&
     (warTotals.teamA.points > 0 || warTotals.teamB.points > 0 || warTotals.rounds.length > 0)
 
-  return (
-    <LayoutContainer className="py-6">
-      {/* Back link */}
-      <Link
-        href="/trips"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
-      >
-        <BackIcon />
-        All trips
-      </Link>
+  // Check for active round
+  const inProgressRound = trip.recentRounds?.find((r) => r.status === 'in_progress')
 
-      {/* Section A: Trip Overview (compact header) */}
-      <section className="mb-6">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="font-display text-2xl font-bold text-text-0">
-              {trip.name}
-            </h1>
-            {trip.description && (
-              <p className="mt-1 text-text-2">{trip.description}</p>
+  return (
+    <div className="min-h-screen bg-bg-0">
+      <LayoutContainer className="py-6 pb-safe">
+        {/* Back link */}
+        <Link
+          href="/trips"
+          className="mb-4 inline-flex items-center gap-1 text-sm text-text-2 hover:text-text-1 transition-colors"
+        >
+          <BackIcon />
+          All trips
+        </Link>
+
+        {/* Section A: Trip Header — clean and bold */}
+        <section className="mb-6">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="font-display text-2xl font-bold text-text-0 leading-tight">
+                {trip.name}
+              </h1>
+              {trip.description && (
+                <p className="mt-1 text-sm text-text-2 leading-relaxed">{trip.description}</p>
+              )}
+            </div>
+            {isAdmin && (
+              <Badge variant="gold" className="shrink-0">Admin</Badge>
             )}
           </div>
-          {isAdmin && <Badge variant="gold">Admin</Badge>}
-        </div>
 
-        {(trip.start_date || trip.end_date) && (
-          <div className="mt-3 flex items-center gap-2 text-sm text-text-2">
-            <CalendarIcon />
-            {trip.start_date && formatDate(trip.start_date)}
-            {trip.start_date && trip.end_date && trip.start_date !== trip.end_date && (
-              <> - {formatDate(trip.end_date)}</>
-            )}
+          {(trip.start_date || trip.end_date) && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-text-2">
+              <CalendarIcon />
+              {trip.start_date && formatDate(trip.start_date)}
+              {trip.start_date && trip.end_date && trip.start_date !== trip.end_date && (
+                <> — {formatDate(trip.end_date)}</>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* Competition Hero Card (shown when competition has data) */}
+        {showHeroCard && warTotals && (
+          <div className="mb-6 animate-fadeIn">
+            <CompetitionHeroCard
+              tripId={params.tripId}
+              competitionName={warTotals.competitionName}
+              teamAPoints={warTotals.teamA.points}
+              teamBPoints={warTotals.teamB.points}
+              totalRounds={warTotals.rounds.length}
+            />
           </div>
         )}
-      </section>
 
-      {/* Competition Hero Card (shown when competition has data) */}
-      {showHeroCard && warTotals && (
-        <CompetitionHeroCard
+        {/* Section B: Setup Checklist (prominent when trip is new) */}
+        <SetupChecklist
           tripId={params.tripId}
-          competitionName={warTotals.competitionName}
-          teamAPoints={warTotals.teamA.points}
-          teamBPoints={warTotals.teamB.points}
-          totalRounds={warTotals.rounds.length}
-          className="mb-6"
+          playerCount={trip.playerCount}
+          roundCount={trip.roundCount}
+          rounds={trip.recentRounds}
         />
-      )}
 
-      {/* Section B: Setup Checklist (prominent when trip is new) */}
-      <SetupChecklist
-        tripId={params.tripId}
-        playerCount={trip.playerCount}
-        roundCount={trip.roundCount}
-        rounds={trip.recentRounds}
-      />
+        {/* Quick Action Grid — always visible, above the fold */}
+        <section className="mb-6">
+          <div className="grid grid-cols-3 gap-2">
+            <Link href={`/trip/${params.tripId}/round/new`}>
+              <div className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-stroke/40 bg-bg-1 px-2 py-4 transition-all active:scale-[0.97] active:bg-bg-2 min-h-[80px]">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/15 text-accent">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                </div>
+                <span className="font-display text-xs font-bold text-text-1">New Round</span>
+              </div>
+            </Link>
 
-      {/* Section C: Trip Configuration */}
-      <section className="mb-6">
-        <h2 className="mb-3 font-display text-lg font-bold text-text-0">
-          Trip Configuration
-        </h2>
-        <div className="space-y-3">
-          {/* Players Card */}
-          <Link href={`/trip/${params.tripId}/players`}>
-            <Card className="p-4 transition-all hover:border-accent/50 active:scale-[0.99]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-good/10 text-good">
-                    <UsersIcon />
-                  </div>
-                  <div>
-                    <p className="font-medium text-text-0">Players</p>
-                    <p className="text-xs text-text-2">
-                      {trip.playerCount === 0
-                        ? 'No players added yet'
-                        : `${trip.playerCount} player${trip.playerCount !== 1 ? 's' : ''}`}
-                    </p>
-                  </div>
+            <Link href={`/trip/${params.tripId}/leaderboard`}>
+              <div className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-stroke/40 bg-bg-1 px-2 py-4 transition-all active:scale-[0.97] active:bg-bg-2 min-h-[80px]">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-good/15 text-good">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" />
+                  </svg>
+                </div>
+                <span className="font-display text-xs font-bold text-text-1">Leaderboard</span>
+              </div>
+            </Link>
+
+            <Link href={`/trip/${params.tripId}/settle`}>
+              <div className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-stroke/40 bg-bg-1 px-2 py-4 transition-all active:scale-[0.97] active:bg-bg-2 min-h-[80px]">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gold/15 text-gold">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <span className="font-display text-xs font-bold text-text-1">Money</span>
+              </div>
+            </Link>
+          </div>
+        </section>
+
+        {/* Section C: Trip Configuration */}
+        <section className="mb-6">
+          <h2 className="mb-3 font-display text-sm font-bold uppercase tracking-wider text-text-2">
+            Setup
+          </h2>
+          <div className="space-y-2">
+            {/* Players Card */}
+            <Link href={`/trip/${params.tripId}/players`}>
+              <div className="flex items-center gap-3 rounded-xl border border-stroke/40 bg-bg-1 p-4 transition-all active:scale-[0.99] active:bg-bg-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-good/10 text-good">
+                  <UsersIcon />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-text-0 text-sm">Players</p>
+                  <p className="text-xs text-text-2">
+                    {trip.playerCount === 0
+                      ? 'No players added yet'
+                      : `${trip.playerCount} player${trip.playerCount !== 1 ? 's' : ''}`}
+                  </p>
                 </div>
                 <ChevronRightIcon />
               </div>
-            </Card>
-          </Link>
+            </Link>
 
-          {/* Photos Card */}
-          <Link href={`/trip/${params.tripId}/media`}>
-            <Card className="p-4 transition-all hover:border-accent/50 active:scale-[0.99]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gold/10 text-gold">
-                    <CameraIcon />
-                  </div>
-                  <div>
-                    <p className="font-medium text-text-0">Photos & Videos</p>
-                    <p className="text-xs text-text-2">
-                      Share moments from the trip
-                    </p>
-                  </div>
+            {/* Photos Card */}
+            <Link href={`/trip/${params.tripId}/media`}>
+              <div className="flex items-center gap-3 rounded-xl border border-stroke/40 bg-bg-1 p-4 transition-all active:scale-[0.99] active:bg-bg-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gold/10 text-gold">
+                  <CameraIcon />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-text-0 text-sm">Photos & Videos</p>
+                  <p className="text-xs text-text-2">
+                    Share moments from the trip
+                  </p>
                 </div>
                 <ChevronRightIcon />
               </div>
-            </Card>
-          </Link>
+            </Link>
 
-          {/* Courses Card (optional, soft framing) */}
-          <Link href="/courses">
-            <Card className="p-4 transition-all hover:border-accent/50 active:scale-[0.99]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
-                    <MapIcon />
-                  </div>
-                  <div>
-                    <p className="font-medium text-text-0">Trip Courses</p>
-                    <p className="text-xs text-text-2">
-                      Add courses for quick round setup
-                    </p>
-                  </div>
+            {/* Courses Card */}
+            <Link href="/courses">
+              <div className="flex items-center gap-3 rounded-xl border border-stroke/40 bg-bg-1 p-4 transition-all active:scale-[0.99] active:bg-bg-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+                  <MapIcon />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-text-0 text-sm">Trip Courses</p>
+                  <p className="text-xs text-text-2">
+                    Add courses for quick round setup
+                  </p>
                 </div>
                 <ChevronRightIcon />
               </div>
-            </Card>
-          </Link>
+            </Link>
 
-          {/* Spectator Link (admin only, secondary style) */}
-          {isAdmin && trip.spectator_token && (
-            <Card variant="secondary" className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-bg-1 text-text-2">
-                    <EyeIcon />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-text-1">📎 Spectator Link</p>
-                    <p className="text-xs text-text-2">Share so others can follow the tournament live</p>
-                  </div>
+            {/* Spectator Link (admin only) */}
+            {isAdmin && trip.spectator_token && (
+              <div className="flex items-center gap-3 rounded-xl border border-stroke/40 bg-bg-1 p-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-bg-2 text-text-2">
+                  <EyeIcon />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-text-1">Spectator Link</p>
+                  <p className="text-xs text-text-2">Others can follow live</p>
                 </div>
                 <SpectatorLinkCopyButton token={trip.spectator_token} />
               </div>
-            </Card>
-          )}
+            )}
 
-          {/* Team Competition (admin only) */}
-          {isAdmin && hasPlayers && (
-            <Card className="p-4">
-              <TeamCompetitionToggle
-                tripId={params.tripId}
-                enabled={trip.war_enabled ?? false}
-                competitionName={competitionName}
-              />
-            </Card>
-          )}
-        </div>
-      </section>
-
-      {/* War Team Assignment (shown when war mode enabled) */}
-      {trip.war_enabled && hasPlayers && (
-        <section className="mb-6">
-          <TripTeamAssignment
-            tripId={params.tripId}
-            players={players.map((p) => ({ id: p.id, name: p.name }))}
-          />
+            {/* Team Competition (admin only) */}
+            {isAdmin && hasPlayers && (
+              <div className="rounded-xl border border-stroke/40 bg-bg-1 p-4">
+                <TeamCompetitionToggle
+                  tripId={params.tripId}
+                  enabled={trip.war_enabled ?? false}
+                  competitionName={competitionName}
+                />
+              </div>
+            )}
+          </div>
         </section>
-      )}
 
-      {/* Section D: Media Preview */}
-      <MediaPreview tripId={params.tripId} />
+        {/* War Team Assignment (shown when war mode enabled) */}
+        {trip.war_enabled && hasPlayers && (
+          <section className="mb-6">
+            <TripTeamAssignment
+              tripId={params.tripId}
+              players={players.map((p) => ({ id: p.id, name: p.name }))}
+            />
+          </section>
+        )}
 
-      {/* Section E: Activity Feed Preview */}
-      <FeedPreview tripId={params.tripId} />
+        {/* Section D: Media Preview */}
+        <MediaPreview tripId={params.tripId} />
 
-      {/* Section F: Rounds on this Trip */}
-      <TripRoundsSection
-        tripId={params.tripId}
-        rounds={trip.recentRounds}
-        hasPlayers={hasPlayers}
-        isAdmin={isAdmin}
-      />
+        {/* Section E: Activity Feed Preview */}
+        <FeedPreview tripId={params.tripId} />
 
-      {/* Floating Upload Button */}
-      <MediaUploadButtonWrapper tripId={params.tripId} />
-    </LayoutContainer>
+        {/* Section F: Rounds on this Trip */}
+        <TripRoundsSection
+          tripId={params.tripId}
+          rounds={trip.recentRounds}
+          hasPlayers={hasPlayers}
+          isAdmin={isAdmin}
+        />
+
+        {/* Floating Upload Button */}
+        <MediaUploadButtonWrapper tripId={params.tripId} />
+      </LayoutContainer>
+    </div>
   )
 }
 
@@ -294,7 +324,7 @@ function MapIcon() {
 
 function EyeIcon() {
   return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
@@ -303,7 +333,7 @@ function EyeIcon() {
 
 function ChevronRightIcon() {
   return (
-    <svg className="h-5 w-5 text-text-2" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+    <svg className="h-5 w-5 text-text-2/40" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
     </svg>
   )
