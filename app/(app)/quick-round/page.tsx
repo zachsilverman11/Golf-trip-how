@@ -74,6 +74,7 @@ const FORMAT_LABELS: Record<RoundFormat, string> = {
   wolf: 'Wolf',
   points_hilo: 'Points Hi/Lo',
   stableford: 'Stableford',
+  scramble: 'Scramble',
 }
 
 // ── Component ────────────────────────────────────────────

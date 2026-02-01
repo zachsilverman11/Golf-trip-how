@@ -8,7 +8,7 @@
 -- Update the format constraint to include new formats
 ALTER TABLE rounds DROP CONSTRAINT IF EXISTS rounds_format_check;
 ALTER TABLE rounds ADD CONSTRAINT rounds_format_check
-  CHECK (format IN ('stroke_play', 'match_play', 'points_hilo', 'stableford', 'nassau', 'skins', 'wolf'));
+  CHECK (format IN ('stroke_play', 'match_play', 'points_hilo', 'stableford', 'scramble', 'nassau', 'skins', 'wolf'));
 
 -- ============================================================================
 -- NASSAU: Three sub-matches (front 9, back 9, overall 18)
