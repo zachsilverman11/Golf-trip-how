@@ -160,7 +160,7 @@ export default function NewRoundPage() {
 
     if (requiresTeams) {
       if (allPlayerIds.length !== 4) {
-        setError('Points Hi/Lo format requires exactly 4 players')
+        setError(`${format === 'nassau' ? 'Nassau' : 'Points Hi/Lo'} format requires exactly 4 players`)
         isSubmittingRef.current = false
         return
       }
@@ -171,6 +171,20 @@ export default function NewRoundPage() {
         isSubmittingRef.current = false
         return
       }
+    }
+
+    // Wolf requires exactly 4 players
+    if (format === 'wolf' && allPlayerIds.length !== 4) {
+      setError('Wolf format requires exactly 4 players')
+      isSubmittingRef.current = false
+      return
+    }
+
+    // Skins requires at least 2 players
+    if (format === 'skins' && allPlayerIds.length < 2) {
+      setError('Skins format requires at least 2 players')
+      isSubmittingRef.current = false
+      return
     }
 
     setSubmitting(true)

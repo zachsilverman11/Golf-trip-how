@@ -14,11 +14,20 @@ import { getTripAction } from '@/lib/supabase/trip-actions'
 import { getRoundScoresMapAction, upsertScoreAction } from '@/lib/supabase/score-actions'
 import { getMatchStateAction, syncMatchStateAction } from '@/lib/supabase/match-actions'
 import { getFormatStateAction } from '@/lib/supabase/format-actions'
+import { getNassauStateAction } from '@/lib/supabase/nassau-actions'
+import { getSkinsStateAction } from '@/lib/supabase/skins-actions'
+import { getWolfStateAction, makeWolfDecisionAction } from '@/lib/supabase/wolf-actions'
 import { generateScoreEvents } from '@/lib/supabase/feed-actions'
 import { useRealtimeScores } from '@/hooks/useRealtimeScores'
+import { NassauStrip } from '@/components/scoring/NassauStrip'
+import { SkinsStrip } from '@/components/scoring/SkinsStrip'
+import { WolfStrip } from '@/components/scoring/WolfStrip'
 import type { DbRoundWithGroups, DbHole } from '@/lib/supabase/types'
 import type { MatchState } from '@/lib/supabase/match-types'
 import type { FormatState } from '@/lib/format-types'
+import type { NassauState } from '@/lib/nassau-utils'
+import type { SkinsState } from '@/lib/skins-utils'
+import type { WolfState } from '@/lib/wolf-utils'
 import { generateNarratives } from '@/lib/narrative-utils'
 import { CompetitionBadge } from '@/components/scoring/CompetitionBadge'
 import { JunkBetButtons } from '@/components/scoring/JunkBetButtons'
@@ -50,6 +59,9 @@ export default function ScorePage() {
   const [scores, setScores] = useState<{ [playerId: string]: { [hole: number]: number | null } }>({})
   const [matchState, setMatchState] = useState<MatchState | null>(null)
   const [formatState, setFormatState] = useState<FormatState | null>(null)
+  const [nassauState, setNassauState] = useState<NassauState | null>(null)
+  const [skinsState, setSkinsState] = useState<SkinsState | null>(null)
+  const [wolfState, setWolfState] = useState<WolfState | null>(null)
   const [formatError, setFormatError] = useState<string | null>(null)
   const [junkConfig, setJunkConfig] = useState<RoundJunkConfig | null>(null)
   const [competitionName, setCompetitionName] = useState<string | null>(null)
@@ -81,6 +93,19 @@ export default function ScorePage() {
       if (formatResult.formatState) {
         setFormatState(formatResult.formatState)
       }
+    }
+    // Refresh new format states
+    if (round?.format === 'nassau') {
+      const result = await getNassauStateAction(roundId)
+      if (result.nassauState) setNassauState(result.nassauState)
+    }
+    if (round?.format === 'skins') {
+      const result = await getSkinsStateAction(roundId)
+      if (result.skinsState) setSkinsState(result.skinsState)
+    }
+    if (round?.format === 'wolf') {
+      const result = await getWolfStateAction(roundId)
+      if (result.wolfState) setWolfState(result.wolfState)
     }
     // Show a subtle toast for remote updates
     setLiveToast(true)
@@ -142,6 +167,36 @@ export default function ScorePage() {
         }
       }
 
+      // Load Nassau state
+      if (format === 'nassau') {
+        const nassauResult = await getNassauStateAction(roundId)
+        if (nassauResult.nassauState) {
+          setNassauState(nassauResult.nassauState)
+        } else if (nassauResult.error) {
+          setFormatError(nassauResult.error)
+        }
+      }
+
+      // Load Skins state
+      if (format === 'skins') {
+        const skinsResult = await getSkinsStateAction(roundId)
+        if (skinsResult.skinsState) {
+          setSkinsState(skinsResult.skinsState)
+        } else if (skinsResult.error) {
+          setFormatError(skinsResult.error)
+        }
+      }
+
+      // Load Wolf state
+      if (format === 'wolf') {
+        const wolfResult = await getWolfStateAction(roundId)
+        if (wolfResult.wolfState) {
+          setWolfState(wolfResult.wolfState)
+        } else if (wolfResult.error) {
+          setFormatError(wolfResult.error)
+        }
+      }
+
       // Load junk bet config
       const junkResult = await getJunkConfigAction(roundId)
       if (junkResult.config?.enabled) {
@@ -149,7 +204,7 @@ export default function ScorePage() {
       }
 
       // Check if this round counts toward team competition
-      if (format === 'match_play' || format === 'points_hilo') {
+      if (format === 'match_play' || format === 'points_hilo' || format === 'nassau') {
         const tripResult = await getTripAction(tripId)
         if (tripResult.trip?.war_enabled) {
           setCompetitionName((tripResult.trip as any).competition_name || 'The Cup')
@@ -176,17 +231,44 @@ export default function ScorePage() {
     }
   }, [roundId, matchState])
 
-  // Refresh format state (only for Points Hi/Lo)
+  // Refresh format state (Points Hi/Lo, Nassau, Skins, Wolf)
   const refreshFormatState = useCallback(async () => {
     if (!round) return
-    if (round.format !== 'points_hilo') return
 
-    const result = await getFormatStateAction(roundId)
-    if (result.formatState) {
-      setFormatState(result.formatState)
-      setFormatError(null)
-    } else if (result.error) {
-      setFormatError(result.error)
+    if (round.format === 'points_hilo') {
+      const result = await getFormatStateAction(roundId)
+      if (result.formatState) {
+        setFormatState(result.formatState)
+        setFormatError(null)
+      } else if (result.error) {
+        setFormatError(result.error)
+      }
+    } else if (round.format === 'nassau') {
+      const result = await getNassauStateAction(roundId)
+      if (result.nassauState) {
+        setNassauState(result.nassauState)
+        setFormatError(null)
+      } else if (result.error) {
+        setFormatError(result.error)
+      }
+    } else if (round.format === 'skins') {
+      const result = await getSkinsStateAction(roundId)
+      if (result.skinsState) {
+        setSkinsState(result.skinsState)
+        setFormatError(null)
+      } else if (result.error) {
+        setFormatError(result.error)
+      }
+    } else if (round.format === 'wolf') {
+      const result = await getWolfStateAction(roundId)
+      if (result.wolfState) {
+        setWolfState(result.wolfState)
+        setFormatError(null)
+      } else if (result.error) {
+        setFormatError(result.error)
+      }
+    } else {
+      return // no format state to refresh
     }
   }, [roundId, round])
 
@@ -291,13 +373,13 @@ export default function ScorePage() {
       await refreshMatchState()
     }
 
-    // Refresh format state if it's a team format
-    if (formatState) {
+    // Refresh format state if it's a format with live state
+    if (formatState || nassauState || skinsState || wolfState) {
       await refreshFormatState()
     }
 
     setSaving(false)
-  }, [roundId, tripId, players, holes, matchState, formatState, refreshMatchState, refreshFormatState, markLocalSave])
+  }, [roundId, tripId, players, holes, matchState, formatState, nassauState, skinsState, wolfState, refreshMatchState, refreshFormatState, markLocalSave])
 
   // Handle round completion
   const handleComplete = async () => {
@@ -384,6 +466,67 @@ export default function ScorePage() {
           roundId={roundId}
           className="mb-4"
         />
+      )}
+
+      {/* Nassau Strip */}
+      {nassauState && (
+        <NassauStrip
+          nassauState={nassauState}
+          currentHole={currentHole}
+          tripId={tripId}
+          roundId={roundId}
+          className="mb-4"
+        />
+      )}
+
+      {/* Skins Strip */}
+      {skinsState && (
+        <SkinsStrip
+          skinsState={skinsState}
+          currentHole={currentHole}
+          tripId={tripId}
+          roundId={roundId}
+          className="mb-4"
+        />
+      )}
+
+      {/* Wolf Strip */}
+      {wolfState && (
+        <WolfStrip
+          wolfState={wolfState}
+          currentHole={currentHole}
+          tripId={tripId}
+          roundId={roundId}
+          onWolfDecision={async (holeNumber, partnerId, isLoneWolf) => {
+            await makeWolfDecisionAction({
+              roundId,
+              holeNumber,
+              partnerId,
+              isLoneWolf,
+            })
+            await refreshFormatState()
+          }}
+          className="mb-4"
+        />
+      )}
+
+      {/* Bet not configured prompt for new formats */}
+      {formatError && (round?.format === 'nassau' || round?.format === 'skins' || round?.format === 'wolf') && (
+        <div className="mb-4 rounded-card border border-gold/30 bg-gold/5 p-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-gold text-lg">💰</span>
+              <span className="text-sm text-text-1">
+                {round.format === 'nassau' ? 'Nassau' : round.format === 'skins' ? 'Skins' : 'Wolf'} bet not set up yet
+              </span>
+            </div>
+            <Link href={`/trip/${tripId}/round/${roundId}`}>
+              <Button variant="secondary" size="default">
+                Set Up
+              </Button>
+            </Link>
+          </div>
+        </div>
       )}
 
       {/* Teams Not Set (for Points Hi/Lo without team assignments) */}

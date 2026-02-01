@@ -1,13 +1,15 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import type { RoundFormat } from '@/lib/supabase/types'
 
-export type RoundFormat = 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
+export type { RoundFormat }
 
 interface FormatOption {
   value: RoundFormat
   label: string
   description: string
+  badge?: string
 }
 
 const formatOptions: FormatOption[] = [
@@ -20,6 +22,24 @@ const formatOptions: FormatOption[] = [
     value: 'match_play',
     label: 'Match Play',
     description: 'Head-to-head by hole, 1v1 or 2v2',
+  },
+  {
+    value: 'nassau',
+    label: 'Nassau',
+    description: '3 bets in 1: Front 9 + Back 9 + Overall 18',
+    badge: 'Popular',
+  },
+  {
+    value: 'skins',
+    label: 'Skins',
+    description: 'Win the hole, win the skin. Ties carry over!',
+    badge: 'New',
+  },
+  {
+    value: 'wolf',
+    label: 'Wolf',
+    description: 'Rotating captain picks a partner each hole (4 players)',
+    badge: 'New',
   },
   {
     value: 'points_hilo',
@@ -92,6 +112,11 @@ export function RoundFormatSelector({
                   >
                     {option.label}
                   </span>
+                  {option.badge && (
+                    <span className="inline-flex items-center rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">
+                      {option.badge}
+                    </span>
+                  )}
                 </div>
                 <p className="mt-0.5 text-xs text-text-2">
                   {option.description}
@@ -107,9 +132,29 @@ export function RoundFormatSelector({
 
 /**
  * Check if format requires team assignments
- * Only Points Hi/Lo requires teams for v1
- * Stableford works individually (team mode is optional/future)
+ * Points Hi/Lo and Nassau require 2v2 teams.
  */
 export function formatRequiresTeams(format: RoundFormat): boolean {
-  return format === 'points_hilo'
+  return format === 'points_hilo' || format === 'nassau'
+}
+
+/**
+ * Check if format requires exactly 4 players.
+ */
+export function formatRequiresFourPlayers(format: RoundFormat): boolean {
+  return format === 'points_hilo' || format === 'nassau' || format === 'wolf'
+}
+
+/**
+ * Get the minimum number of players for a format.
+ */
+export function getMinPlayers(format: RoundFormat): number {
+  switch (format) {
+    case 'wolf': return 4
+    case 'nassau': return 2
+    case 'points_hilo': return 4
+    case 'match_play': return 2
+    case 'skins': return 2
+    default: return 1
+  }
 }

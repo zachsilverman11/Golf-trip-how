@@ -93,7 +93,7 @@ export function useQuickRoundDraft() {
       // Smart team assignment handling when players change
       if (updates.players !== undefined) {
         const newPlayers = updates.players
-        const needsTeams = next.format === 'match_play' || next.format === 'points_hilo'
+        const needsTeams = next.format === 'match_play' || next.format === 'points_hilo' || next.format === 'nassau'
 
         if (needsTeams && newPlayers.length === 4) {
           // Check if existing assignments are still valid
@@ -111,7 +111,7 @@ export function useQuickRoundDraft() {
 
       // Auto-assign teams when format changes to one that requires teams
       if (updates.format !== undefined) {
-        const needsTeams = updates.format === 'match_play' || updates.format === 'points_hilo'
+        const needsTeams = updates.format === 'match_play' || updates.format === 'points_hilo' || updates.format === 'nassau'
 
         if (needsTeams && next.players.length === 4) {
           const existingValid = areTeamAssignmentsValid(next.players, next.teamAssignments)

@@ -13,7 +13,7 @@ export interface CreateQuickRoundInput {
   players: QuickRoundPlayer[]
   teeId: string | null
   courseName: string | null
-  format: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
+  format: import('./types').RoundFormat
   scoringBasis: 'gross' | 'net'
   teeTime: string | null  // HH:MM format
   teamAssignments?: Record<string, 1 | 2>  // draftPlayerId -> team (1 or 2)
@@ -60,6 +60,27 @@ export async function createQuickRoundAction(input: CreateQuickRoundInput): Prom
     }
     if (!input.teamAssignments) {
       return { success: false, error: 'Points Hi/Lo requires team assignments' }
+    }
+  }
+
+  if (input.format === 'nassau') {
+    if (input.players.length !== 4) {
+      return { success: false, error: 'Nassau requires exactly 4 players' }
+    }
+    if (!input.teamAssignments) {
+      return { success: false, error: 'Nassau requires team assignments' }
+    }
+  }
+
+  if (input.format === 'skins') {
+    if (input.players.length < 2) {
+      return { success: false, error: 'Skins requires at least 2 players' }
+    }
+  }
+
+  if (input.format === 'wolf') {
+    if (input.players.length !== 4) {
+      return { success: false, error: 'Wolf requires exactly 4 players' }
     }
   }
 

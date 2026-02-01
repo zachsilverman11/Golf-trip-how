@@ -107,6 +107,8 @@ export interface DbPlayer {
   updated_at: string
 }
 
+export type RoundFormat = 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford' | 'nassau' | 'skins' | 'wolf'
+
 export interface DbRound {
   id: string
   trip_id: string
@@ -115,7 +117,7 @@ export interface DbRound {
   date: string
   tee_time: string | null
   status: 'upcoming' | 'in_progress' | 'completed'
-  format: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
+  format: RoundFormat
   scoring_basis: 'gross' | 'net'
   created_at: string
   updated_at: string
@@ -209,9 +211,72 @@ export interface DbRoundSummary {
   date: string
   tee_time: string | null
   status: 'upcoming' | 'in_progress' | 'completed'
-  format: 'stroke_play' | 'match_play' | 'points_hilo' | 'stableford'
+  format: RoundFormat
   scoring_basis?: 'gross' | 'net'
 }
+
+// ============================================================================
+// NASSAU TYPES
+// ============================================================================
+
+export interface DbNassauBet {
+  id: string
+  round_id: string
+  stake_per_man: number
+  auto_press: boolean
+  auto_press_threshold: number
+  team_a_player1_id: string
+  team_a_player2_id: string | null
+  team_b_player1_id: string
+  team_b_player2_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type DbNassauBetInsert = Omit<DbNassauBet, 'id' | 'created_at' | 'updated_at'>
+
+// ============================================================================
+// SKINS TYPES
+// ============================================================================
+
+export interface DbSkinsBet {
+  id: string
+  round_id: string
+  skin_value: number
+  carryover: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type DbSkinsBetInsert = Omit<DbSkinsBet, 'id' | 'created_at' | 'updated_at'>
+
+// ============================================================================
+// WOLF TYPES
+// ============================================================================
+
+export interface DbWolfBet {
+  id: string
+  round_id: string
+  stake_per_hole: number
+  lone_wolf_multiplier: number
+  tee_order: string[]
+  created_at: string
+  updated_at: string
+}
+
+export type DbWolfBetInsert = Omit<DbWolfBet, 'id' | 'created_at' | 'updated_at'>
+
+export interface DbWolfDecision {
+  id: string
+  wolf_bet_id: string
+  hole_number: number
+  wolf_player_id: string
+  partner_player_id: string | null
+  is_lone_wolf: boolean
+  created_at: string
+}
+
+export type DbWolfDecisionInsert = Omit<DbWolfDecision, 'id' | 'created_at'>
 
 // Extended trip type with counts for Trip HQ
 export interface DbTripWithCounts extends DbTrip {

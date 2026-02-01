@@ -18,12 +18,14 @@ import { useQuickRoundDraft, type QuickRoundPlayer } from '@/hooks/useQuickRound
 
 function shouldShowTeams(format: RoundFormat, playerCount: number): boolean {
   if (format === 'points_hilo') return playerCount === 4
+  if (format === 'nassau') return playerCount === 4
   if (format === 'match_play') return playerCount === 4
   return false
 }
 
 function teamsRequired(format: RoundFormat, playerCount: number): boolean {
   if (format === 'points_hilo') return true
+  if (format === 'nassau') return true
   if (format === 'match_play' && playerCount === 4) return true
   return false
 }
@@ -39,12 +41,30 @@ function getPlayerCountError(format: RoundFormat, playerCount: number): string |
       return 'Points Hi/Lo requires exactly 4 players'
     }
   }
+  if (format === 'nassau') {
+    if (playerCount !== 4 && playerCount > 0) {
+      return 'Nassau requires exactly 4 players'
+    }
+  }
+  if (format === 'skins') {
+    if (playerCount < 2 && playerCount > 0) {
+      return 'Skins requires at least 2 players'
+    }
+  }
+  if (format === 'wolf') {
+    if (playerCount !== 4 && playerCount > 0) {
+      return 'Wolf requires exactly 4 players'
+    }
+  }
   return null
 }
 
 const FORMAT_LABELS: Record<RoundFormat, string> = {
   stroke_play: 'Stroke Play',
   match_play: 'Match Play',
+  nassau: 'Nassau',
+  skins: 'Skins',
+  wolf: 'Wolf',
   points_hilo: 'Points Hi/Lo',
   stableford: 'Stableford',
 }
@@ -243,11 +263,11 @@ export default function QuickRoundPage() {
               onRemovePlayer={removePlayer}
             />
             {/* Player count hint for team formats */}
-            {(draft.format === 'match_play' || draft.format === 'points_hilo') && draft.players.length > 0 && draft.players.length < 4 && (
+            {(draft.format === 'match_play' || draft.format === 'points_hilo' || draft.format === 'nassau' || draft.format === 'wolf') && draft.players.length > 0 && draft.players.length < 4 && (
               <p className="mt-2 text-xs text-text-2">
                 {draft.format === 'match_play'
                   ? `Add ${draft.players.length === 1 ? '1 more player for 1v1' : `${4 - draft.players.length} more for 2v2`}`
-                  : `Add ${4 - draft.players.length} more player${4 - draft.players.length > 1 ? 's' : ''} for Points Hi/Lo`
+                  : `Add ${4 - draft.players.length} more player${4 - draft.players.length > 1 ? 's' : ''} for ${FORMAT_LABELS[draft.format]}`
                 }
               </p>
             )}
